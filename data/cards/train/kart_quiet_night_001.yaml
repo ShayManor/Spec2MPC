@@ -1,0 +1,23 @@
+id: kart_quiet_night_001
+family: kart
+task: goto
+statements:
+  - "Quiet night operation near residences"
+  - "Late-evening kart run past houses, keep the noise down"
+  - "Overnight service kart that should not wake the neighbours"
+  - "Low-disturbance kart for a residential street at night"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.7, 1.1], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: reach_goal, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: gentle_long, require: "a_long_rms_g < 0.1"}
+    - {name: smooth, require: "jerk_rms_mps3 < 1.5"}
+    - {name: gentle_lat, require: "a_lat_rms_g < 0.1"}
+    - {name: speed_p95_under_5, require: "speed_p95_mps < 5"}
+    - {name: under_150s, require: "completion_time_s < 150"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "WHO Night Noise Guidelines for Europe (2009) motivate keeping night-time vehicle noise low; tyre and motor noise grow with speed and force transients, so acceleration, jerk and speed stand in for noise (no direct noise metric), thresholds are draft judgment", blind: false}

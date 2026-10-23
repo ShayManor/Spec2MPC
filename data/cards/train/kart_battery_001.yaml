@@ -1,0 +1,22 @@
+id: kart_battery_001
+family: kart
+task: lap
+statements:
+  - "Kart that's easy on the battery"
+  - "Energy-efficient kart, range matters more than speed"
+  - "Economy run kart, finish the laps on as little charge as possible"
+  - "Kart that sips power"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.7, 1.1], mass_scale: [0.9, 1.15], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: not_stalling, require: "lap_time_s < 150"}
+    - {name: under_0p06_Whpm, require: "energy_per_m_Whpm < 0.06"}
+    - {name: under_0p045_Whpm, require: "energy_per_m_Whpm < 0.045"}
+    - {name: under_0p035_Whpm, require: "energy_per_m_Whpm < 0.035"}
+  shaping: {margin_term: "clip((T_next - energy_per_m_Whpm) / T_next, 0, 1)", weight: 0.5}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Shell Eco-marathon style efficiency scoring (energy per distance under a minimum average-speed requirement); energy thresholds are draft guesses to be calibrated against the sim energy model", blind: false}

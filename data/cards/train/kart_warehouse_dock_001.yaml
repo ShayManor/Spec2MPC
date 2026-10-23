@@ -1,0 +1,23 @@
+id: kart_warehouse_dock_001
+family: kart
+task: goto
+statements:
+  - "Warehouse delivery to the loading dock"
+  - "Carry a load across the warehouse floor to the dock"
+  - "Indoor logistics kart, take the shipment to the dock efficiently"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.8, 1.1], mass_scale: [0.9, 1.15], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: reach_dock, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: speed_under_4, require: "speed_max_mps < 4"}
+    - {name: clearance_over_0p3m, require: "min_clearance_m > 0.3"}
+    - {name: mean_over_1p5mps, require: "speed_mean_mps > 1.5"}
+    - {name: mean_over_2p5mps, require: "speed_mean_mps > 2.5"}
+    - {name: mean_over_3p5mps, require: "speed_mean_mps > 3.5"}
+  shaping: {margin_term: "clip((speed_mean_mps - 1) / 3, 0, 1)", weight: 0.5}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Indoor driverless-vehicle practice (ISO 3691-4 requires site-set speed limits and safe stopping near people); the 4 m/s cap, clearance and mean-speed tiers are draft judgment", blind: false}

@@ -1,0 +1,72 @@
+tire_model: linear
+ranges:
+  mass_kg: [120, 300]
+  yaw_inertia_kgm2: [20, 90]
+  wheelbase_m: [1.0, 1.4]
+  lf_frac: [0.40, 0.60]
+  cf_Npr: [6000, 30000]
+  cr_Npr: [6000, 30000]
+  pac_B: [6, 12]
+  pac_C: [1.2, 1.6]
+  pac_E: [-0.5, 0.3]
+  mu_nominal: [0.8, 1.1]
+  max_steer_rad: [0.35, 0.6]
+  max_steer_rate_radps: [1.5, 4.0]
+  max_drive_force_N: [400, 1500]
+  max_brake_force_N: [800, 2500]
+  max_force_rate_Nps: [2000, 8000]
+  actuator_delay_s: [0.0, 0.1]
+  v_max_mps: [10, 25]
+  width_m: [0.9, 1.3]
+  length_m: [1.5, 2.1]
+  c_rr: [0.01, 0.02]
+  c_drag: [0.2, 0.6]
+gravity_mps2: 9.81
+perception:
+  range_m: [10, 40]
+  fov_rad: [1.5, 6.2832]
+  loc_noise_std_m: [0, 0.2]
+  loc_bias_m: [0, 0.1]
+  latency_s: [0, 0.15]
+  p_false_occ: [0, 0.02]
+  p_false_free: [0, 0.05]
+  pred_error_m: [0, 0.5]
+  p_has_prediction: 0.5
+runtime:
+  control_rate_hz: [10, 20, 25, 50]
+  solver_iters: [5, 10, 20, 40]
+  perception_rate_hz: [5, 10]
+# PLACEHOLDER: replace with measured EVC kart values from the user
+fixed:
+  evc:
+    mass_kg: 210
+    yaw_inertia_kgm2: 55
+    wheelbase_m: 1.2
+    lf_frac: 0.5
+    cf_Npr: 18000
+    cr_Npr: 18000
+    pac_B: 9
+    pac_C: 1.4
+    pac_E: -0.1
+    mu_nominal: 0.95
+    max_steer_rad: 0.475
+    max_steer_rate_radps: 2.75
+    max_drive_force_N: 950
+    max_brake_force_N: 1650
+    max_force_rate_Nps: 5000
+    actuator_delay_s: 0.05
+    v_max_mps: 17.5
+    width_m: 1.1
+    length_m: 1.8
+    c_rr: 0.015
+    c_drag: 0.4
+    perception:
+      range_m: 25
+      fov_rad: 3.8916
+      loc_noise_std_m: 0.1
+      loc_bias_m: 0.05
+      latency_s: 0.075
+      p_false_occ: 0.01
+      p_false_free: 0.025
+      pred_error_m: 0.25
+      has_prediction: false

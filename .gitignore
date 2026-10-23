@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Spec2MPC local
+CLAUDE.md
+docs/
+data/rollouts/
+.idea/
+.superpowers/
+data/previews/

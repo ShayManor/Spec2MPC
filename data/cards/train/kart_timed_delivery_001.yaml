@@ -1,0 +1,23 @@
+id: kart_timed_delivery_001
+family: kart
+task: goto
+statements:
+  - "Deliver the package in under 2 minutes"
+  - "The package has to arrive within 2 minutes"
+  - "Courier kart with a 2 minute delivery window"
+  - "Get this there in under 2 minutes"
+slots_expected: {t_max_s: 120}
+rubric:
+  conditions: {friction_scale: [0.8, 1.1], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: reach_goal, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: within_120s, require: "completion_time_s < 120"}
+    - {name: mean_over_2mps, require: "speed_mean_mps > 2"}
+    - {name: mean_over_4mps, require: "speed_mean_mps > 4"}
+    - {name: mean_over_6mps, require: "speed_mean_mps > 6"}
+  shaping: {margin_term: "clip((speed_mean_mps - 1) / 6, 0, 1)", weight: 0.5}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Delivery service-level agreement with a hard 120 s deadline; mean-speed tiers (length-normalized) reward margin under the deadline", blind: false}

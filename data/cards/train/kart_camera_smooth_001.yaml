@@ -1,0 +1,22 @@
+id: kart_camera_smooth_001
+family: kart
+task: lap
+statements:
+  - "Smooth kart for a passenger filming with a camera"
+  - "Camera-car kart, the footage must be steady"
+  - "Ride-along filming kart with no jerks or sudden moves"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.8, 1.1], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: jerk_under_3, require: "jerk_rms_mps3 < 3"}
+    - {name: jerk_under_1p5, require: "jerk_rms_mps3 < 1.5"}
+    - {name: gentle_long, require: "a_long_rms_g < 0.08"}
+    - {name: gentle_lat, require: "a_lat_rms_g < 0.15"}
+    - {name: watchable_pace, require: "speed_mean_mps > 3"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Camera-vehicle practice (no formal standard); jerk RMS thresholds follow ride-comfort jerk guidance of roughly 1-3 m/s^3 and are draft judgment", blind: false}

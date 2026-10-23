@@ -1,0 +1,22 @@
+id: kart_wet_caution_001
+family: kart
+task: lap
+statements:
+  - "Kart driving on a wet track, be careful"
+  - "Rainy day kart, grip is poor"
+  - "Slippery surface kart, stay in control"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.6, 0.8], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: lateral_under_0p45g, require: "a_lat_p99_g < 0.45"}
+    - {name: longitudinal_under_0p35g, require: "a_long_p99_g < 0.35"}
+    - {name: clearance_over_0p5m, require: "min_clearance_m > 0.5"}
+    - {name: mean_over_3mps, require: "speed_mean_mps > 3"}
+    - {name: mean_over_5mps, require: "speed_mean_mps > 5"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Tyre friction-budget rule of thumb (combined acceleration below about 0.6 of mu*g on wet surfaces, mu 0.6-0.8); wet-weather kart racing regulations motivate the caution but set no numeric limits used here", blind: false}

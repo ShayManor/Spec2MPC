@@ -1,0 +1,19 @@
+id: kart_fast_001
+family: kart
+task: lap
+statements:
+  - "Autonomous kart that goes fast"
+  - "Racing kart, speed is what matters"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.7, 1.0], latency_s: [0.01, 0.04], episodes: 2}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: under_600s, require: "lap_time_s < 600"}
+    - {name: under_300s, require: "lap_time_s < 300"}
+    - {name: under_120s, require: "lap_time_s < 120"}
+  shaping: {margin_term: "clip((T_next - lap_time_s) / T_next, 0, 1)", weight: 0.5}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "test", source: "fixture", blind: false}

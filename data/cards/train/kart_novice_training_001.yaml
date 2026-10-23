@@ -1,0 +1,23 @@
+id: kart_novice_training_001
+family: kart
+task: lap
+statements:
+  - "Kart for a novice driver training lap"
+  - "Beginner-friendly practice kart, keep it forgiving"
+  - "Driving-school kart for first-time drivers to follow"
+  - "Learner kart, safe and predictable around the track"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.7, 1.1], mass_scale: [0.9, 1.15], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: lateral_under_0p5g, require: "a_lat_p99_g < 0.5"}
+    - {name: longitudinal_under_0p4g, require: "a_long_p99_g < 0.4"}
+    - {name: clearance_over_1m, require: "min_clearance_m > 1"}
+    - {name: mean_over_3mps, require: "speed_mean_mps > 3"}
+    - {name: mean_over_5mps, require: "speed_mean_mps > 5"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Karting school practice of capping grip usage for beginners (rental-kart operators run well below the limit); thresholds are draft judgment", blind: false}

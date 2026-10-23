@@ -1,0 +1,22 @@
+id: kart_parking_demo_001
+family: kart
+task: goto
+statements:
+  - "Kart for a parking-lot demo with people nearby"
+  - "Demo drive in a car park with pedestrians around"
+  - "Show the kart off in a busy lot without scaring anyone"
+  - "Public demonstration kart, bystanders are close to the route"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.8, 1.1], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: reach_goal, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: clearance_over_0p5m, require: "min_clearance_m > 0.5"}
+    - {name: speed_under_2p5, require: "speed_max_mps < 2.5"}
+    - {name: clearance_over_1m, require: "min_clearance_m > 1"}
+    - {name: not_crawling, require: "speed_mean_mps > 1"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Typical 5 mph (2.2 m/s) parking-lot speed limits and pedestrian separation practice; 2.5 m/s cap and clearance values are draft judgment", blind: false}

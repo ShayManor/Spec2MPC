@@ -1,0 +1,21 @@
+id: kart_kids_fair_001
+family: kart
+task: lap
+statements:
+  - "Kart for giving rides to kids at a fair"
+  - "Gentle ride-along kart for children at a carnival"
+  - "Passenger kart for a family amusement park, nobody should be scared"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.8, 1.1], latency_s: [0.0, 0.06], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: no_boundary_contact, require: "boundary_violations == 0"}
+    - {name: lateral_under_0p3g, require: "a_lat_p99_g < 0.3"}
+    - {name: longitudinal_under_0p2g, require: "a_long_p99_g < 0.2"}
+    - {name: smooth, require: "jerk_rms_mps3 < 2"}
+    - {name: not_crawling, require: "speed_mean_mps > 2"}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Amusement-ride acceleration comfort guidance (ASTM F2291 design practice for amusement rides); 0.3 g lateral and 2 m/s^3 jerk are draft judgment, minimum mean speed keeps the ride from stalling", blind: false}

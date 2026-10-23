@@ -1,0 +1,37 @@
+ds_m: 0.25
+scene:
+  spline_fine_ds_m: 0.05
+  min_turn_radius_floor_m: 3.0
+  max_attempts: 500
+  n_laps: 2
+  lap:
+    n_ctrl: [8, 14]
+    length_m: [80.0, 250.0]
+    half_width_m: [2.5, 5.0]
+    radial_jitter: 0.4
+    angle_jitter_frac: 0.3
+    overlap_arc_hw_factor: 4.0
+    overlap_dist_hw_factor: 2.0
+    overlap_extra_m: 1.0
+    overlap_stride_m: 1.0
+    goal_tol_m: 0.0
+  goto:
+    n_ctrl: [4, 7]
+    length_m: [30.0, 120.0]
+    half_width_m: [3.0, 8.0]
+    turn_max_rad: 0.8
+    n_obstacles: [0, 6]
+    obstacle_r_m: [0.3, 1.0]
+    n_peds: [0, 6]
+    ped_r_m: 0.3
+    ped_speed_mps: [0.5, 1.5]
+    start_clear_m: 5.0
+    goal_clear_m: 3.0
+    placement_attempts: 50
+    goal_tol_m: 1.0
+    n_laps: 1
+grid:
+  size_m: 20.0
+  res_m: 0.1
+  frame_offsets_s: [0.0, 0.5, 1.0, 1.5]
+  edt_chunk_bytes: 2.0e9

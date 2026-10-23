@@ -1,0 +1,4 @@
+n_path_tokens: 64
+clear_cap_m: 10.0
+march_eps_m: 0.02
+march_max_steps: 64

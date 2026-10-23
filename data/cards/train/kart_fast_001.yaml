@@ -1,0 +1,21 @@
+id: kart_fast_001
+family: kart
+task: lap
+statements:
+  - "Autonomous kart that goes fast"
+  - "Racing kart, speed is what matters"
+  - "Get around the track as quickly as possible"
+  - "Time-trial kart, lap time is the only score"
+slots_expected: {}
+rubric:
+  conditions: {friction_scale: [0.7, 1.1], latency_s: [0.0, 0.04], episodes: 16}
+  tiers:
+    - {name: complete_lap, require: "completion == 1"}
+    - {name: mean_over_6mps, require: "speed_mean_mps > 6"}
+    - {name: mean_over_9mps, require: "speed_mean_mps > 9"}
+    - {name: mean_over_12mps, require: "speed_mean_mps > 12"}
+  shaping: {margin_term: "clip((speed_mean_mps - 4) / 10, 0, 1)", weight: 0.5}
+  penalties:
+    - {expr: "boundary_violations", weight: 1.0}
+    - {expr: "solver_failures", weight: 2.0}
+provenance: {author: "claude-draft", source: "Time-trial scoring as in kart racing, where rank is lap time; mean-speed tiers (length-normalized) are draft judgment for 10-25 m/s karts, to be calibrated against oracle laps", blind: false}

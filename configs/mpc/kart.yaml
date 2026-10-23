@@ -1,0 +1,43 @@
+horizon: 30
+dt_s: 0.05
+v_blend_mps: [1.0, 3.0]
+kin_relax_s: 0.1
+brake_vx_eps_mps: 0.1
+# Initial nominal weights; tuned in Task 7.
+w_nom:
+  w_progress: 1.0
+  w_contour: 10.0
+  w_lag: 10.0
+  w_speed_ref: 1.0
+  w_accel: 0.1
+  w_jerk: 0.1
+  w_effort: 0.1
+  w_clearance: 1.0
+  w_slack: 1000.0
+floors:
+  c_vmax: 0.1
+  c_alat: 0.1
+  c_along: 0.1
+  m_floor_m: 0.2
+  rho_slack_min: 100.0
+max:
+  c_vmax: 1.0
+  c_alat: 1.0
+  c_along: 1.0
+  c_margin_m: 2.0
+constraints:
+  nominal:
+    c_vmax: 0.8
+    c_alat: 0.8
+    c_along: 0.8
+    c_margin: 0.3
+    v_ref: 0.5
+delta_max: 3.0
+v_ref_min: 0.05
+clearance_band_m: 1.0
+solver:
+  lr: 0.1
+  betas: [0.9, 0.99]
+  eps: 1.0e-8
+  project_window_m: 3.0
+  compile: false
