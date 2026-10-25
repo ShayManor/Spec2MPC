@@ -36,7 +36,7 @@ def _forces(x: Tensor, p: KartParams, mu_scale: Tensor, mass_scale: Tensor, tire
     fyf = _lateral_force(alpha_f, p.cf_Npr, fz_f, mu, p, tire_model)
     fyr = _lateral_force(alpha_r, p.cr_Npr, fz_r, mu, p, tire_model)
     vfac = torch.tanh(vx / brake_vx_eps_mps)
-    fx = (torch.clamp(F, min=0.0) + torch.clamp(F, max=0.0) * vfac
+    fx = (torch.where(F >= 0, F, F * vfac)
           - p.c_rr * m * GRAVITY_MPS2 * vfac - p.c_drag * vx * torch.abs(vx))
     return m, fx, fyf, fyr
 

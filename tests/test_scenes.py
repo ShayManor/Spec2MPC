@@ -192,6 +192,19 @@ def test_goto_contents(scenes_goto, cfg):
     assert (sc.goal_tol_m > 0).all()
 
 
+def test_static_obstacles_off_path_and_in_corridor(cfg):
+    # the planner routes around static obstacles: each clears the centerline by path_clear_m, and stays in the corridor
+    sc = generate_scenes(64, cfg, torch.Generator().manual_seed(5), "goto")
+    real = sc.obstacles_r > 0
+    assert real.sum() > 32
+    p, _, _ = path_lookup(sc.path, project_global(sc.path, sc.obstacles_xy))
+    d = (sc.obstacles_xy - p).norm(dim=-1)  # [B, O] distance to the centerline
+    clear = float(cfg.scene.goto.path_clear_m)
+    tol = float(cfg.ds_m)  # the placement test uses the path's sample points
+    assert (d - sc.obstacles_r >= clear - tol)[real].all()
+    assert (d + sc.obstacles_r <= sc.path.half_width_m[:, None] + 1e-3)[real].all()
+
+
 def test_generation_deterministic(cfg):
     a = generate_scenes(4, cfg, torch.Generator().manual_seed(9), "lap")
     b = generate_scenes(4, cfg, torch.Generator().manual_seed(9), "lap")

@@ -28,7 +28,7 @@ perception:
   loc_noise_std_m: [0, 0.2]
   loc_bias_m: [0, 0.1]
   latency_s: [0, 0.15]
-  p_false_occ: [0, 0.02]
+  p_false_occ: [0, 1.0e-4]
   p_false_free: [0, 0.05]
   pred_error_m: [0, 0.5]
   p_has_prediction: 0.5
@@ -66,7 +66,7 @@ fixed:
       loc_noise_std_m: 0.1
       loc_bias_m: 0.05
       latency_s: 0.075
-      p_false_occ: 0.01
+      p_false_occ: 5.0e-5
       p_false_free: 0.025
       pred_error_m: 0.25
       has_prediction: false

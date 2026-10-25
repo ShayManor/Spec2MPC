@@ -140,3 +140,11 @@ def test_brake_at_rest_does_not_reverse(p1):
 def test_brake_from_speed_stops(p1):
     x, lo = _run(state(vx=10.0, F=-float(p1.max_brake_force_N[0])), p1, 1500)
     assert 0.0 <= float(x[0, 3]) <= 0.2 and lo > -0.05
+
+
+def test_drive_force_gradient_nonzero_at_rest_f0(p1):
+    x = state(vx=0.0, F=0.0).requires_grad_(True)
+    u = torch.zeros(1, NU)
+    xd = kart_xdot(x, u, p1, ones(), ones(), "linear", VB, KR, BE)
+    (g,) = torch.autograd.grad(xd[:, 3].sum(), x)
+    assert g[0, 7] > 0

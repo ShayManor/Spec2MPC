@@ -210,13 +210,16 @@ def _goto_path(r: _Rand, cfg: DictConfig, ds_m: float) -> Optional[Tuple[Tuple[n
     return (xy, s, hd, cu), hw
 
 
-def _place(r: _Rand, gc: DictConfig, xy: np.ndarray, s: np.ndarray, hd: np.ndarray, hw: float, rad: float) -> Optional[np.ndarray]:
+def _place(r: _Rand, gc: DictConfig, xy: np.ndarray, s: np.ndarray, hd: np.ndarray, hw: float, rad: float,
+           path_clear_m: float = 0.0) -> Optional[np.ndarray]:
+    # path_clear_m: required gap between the circle's edge and the centerline (static obstacles only)
     for _ in range(gc.placement_attempts):
         sv = r.uniform(0.0, float(s[-1]))
         i = min(int(np.searchsorted(s, sv)), len(s) - 1)
         d = r.uniform(-(hw - rad), hw - rad)
         c = xy[i] + d * np.array([-math.sin(hd[i]), math.cos(hd[i])])
-        if np.linalg.norm(c - xy[0]) > gc.start_clear_m and np.linalg.norm(c - xy[-1]) > gc.goal_clear_m:
+        if np.linalg.norm(c - xy[0]) > gc.start_clear_m and np.linalg.norm(c - xy[-1]) > gc.goal_clear_m \
+                and np.linalg.norm(xy - c, axis=1).min() >= rad + path_clear_m:
             return c
     return None
 
@@ -239,7 +242,7 @@ def _one_scene(seed: int, cfg: DictConfig, task: str) -> dict:
     if task == "goto":
         for j in range(r.randint(*gc.n_obstacles)):
             rad = r.uniform(*gc.obstacle_r_m)
-            c = _place(r, gc, xy, s, hd, hw, rad)
+            c = _place(r, gc, xy, s, hd, hw, rad, float(gc.path_clear_m))
             if c is not None:
                 obs[j], obs_r[j] = c, rad
         for j in range(r.randint(*gc.n_peds)):

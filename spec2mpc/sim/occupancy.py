@@ -10,6 +10,62 @@ from torch import Tensor
 from spec2mpc.sim.paths import path_ds_m
 from spec2mpc.sim.scenes import Scene, pedestrians_at
 
+try:
+    import triton
+    import triton.language as tl
+except ImportError:  # CPU-only installs (Mac): the eager path below is used
+    triton = None
+
+
+if triton is not None:
+
+    @triton.jit
+    def _corridor_min_kernel(ce, ca, ae, inv, aa, e2, cc, out, N, W, BLOCK_N: tl.constexpr, BLOCK_W: tl.constexpr):
+        # min over W of the eager d2 expression in _corridor_dist, op by op (launched without FMA contraction)
+        b = tl.program_id(0).to(tl.int64)
+        rn = tl.program_id(1) * BLOCK_N + tl.arange(0, BLOCK_N)
+        mn = rn < N
+        ccv = tl.load(cc + b * N + rn, mask=mn, other=0.0)  # [BLOCK_N]
+        acc = tl.full([BLOCK_N], float("inf"), tl.float32)
+        for w0 in range(0, W, BLOCK_W):
+            rw = w0 + tl.arange(0, BLOCK_W)
+            mw = rw < W
+            m2 = mn[:, None] & mw[None, :]
+            aev = tl.load(ae + b * W + rw, mask=mw, other=0.0)[None, :]
+            invv = tl.load(inv + b * W + rw, mask=mw, other=0.0)[None, :]
+            aav = tl.load(aa + b * W + rw, mask=mw, other=0.0)[None, :]
+            e2v = tl.load(e2 + b * W + rw, mask=mw, other=0.0)[None, :]
+            off = b * N * W + rn[:, None].to(tl.int64) * W + rw[None, :]
+            cev = tl.load(ce + off, mask=m2, other=0.0)  # [BLOCK_N, BLOCK_W]
+            cav = tl.load(ca + off, mask=m2, other=0.0)
+            t = (cev - aev) * invv
+            t = tl.where(t != t, t, tl.minimum(tl.maximum(t, 0.0), 1.0))  # clamp(0, 1), NaN passes through
+            d2 = ccv[:, None] + aav - 2.0 * cav - 2.0 * t * (cev - aev) + t * t * e2v
+            d2 = tl.where(m2, d2, float("inf"))
+            nan = tl.max((d2 != d2).to(tl.int32), axis=1) > 0
+            row = tl.where(nan, float("nan"), tl.min(d2, axis=1))
+            acc = tl.where(acc != acc, acc, tl.where(row != row, row, tl.minimum(acc, row)))  # amin propagates NaN
+        tl.store(out + b * N + rn, acc, mask=mn)
+
+    @triton.jit
+    def _min_plus_kernel(f, out, n, s_m, s_k, s_j, o_m, o_i, o_j, BLOCK_I: tl.constexpr, BLOCK_J: tl.constexpr):
+        # out[m, i, j] = min_k ((i - k)^2 + f[m, k, j]); f and out addressed by strides
+        m = tl.program_id(0).to(tl.int64)
+        ri = tl.program_id(1) * BLOCK_I + tl.arange(0, BLOCK_I)
+        rj = tl.arange(0, BLOCK_J)
+        mj = rj < n
+        fi = ri.to(tl.float32)[:, None]
+        acc = tl.full([BLOCK_I, BLOCK_J], float("inf"), tl.float32)
+        for k in range(0, n):
+            g = tl.load(f + m * s_m + k * s_k + rj * s_j, mask=mj, other=float("inf"))[None, :]  # [1, BLOCK_J]
+            d = fi - k
+            acc = tl.minimum(acc, d * d + g)
+        tl.store(out + m * o_m + ri[:, None] * o_i + rj[None, :] * o_j, acc, mask=(ri < n)[:, None] & mj[None, :])
+
+
+def _use_triton(x: Tensor) -> bool:
+    return triton is not None and x.is_cuda and x.dtype == torch.float32
+
 
 @dataclass
 class GridSpec:
@@ -64,6 +120,13 @@ def _corridor_dist(scene: Scene, cells: Tensor, s_center: Tensor, half_window_m:
     ca = torch.bmm(c, a.transpose(1, 2))
     cc = (c * c).sum(-1)[..., None]
     aa = (a * a).sum(-1)[:, None]
+    if _use_triton(ce):
+        bc, nc, wc = ce.shape
+        d2min = torch.empty(bc, nc, dtype=ce.dtype, device=ce.device)
+        grid = (bc, triton.cdiv(nc, 64))
+        _corridor_min_kernel[grid](ce, ca.contiguous(), ae.contiguous(), inv.contiguous(), aa.contiguous(), e2.contiguous(),
+                                   cc.contiguous(), d2min, nc, wc, BLOCK_N=64, BLOCK_W=32, enable_fp_fusion=False)
+        return d2min.clamp(min=0.0).sqrt()
     t = ((ce - ae) * inv[:, None]).clamp(0.0, 1.0)
     d2 = cc + aa - 2 * ca - 2 * t * (ce - ae) + t * t * e2[:, None]
     return d2.amin(dim=-1).clamp(min=0.0).sqrt()
@@ -104,6 +167,12 @@ def rasterize(scene: Scene, origin_xy: Tensor, t_s: Tensor, spec: GridSpec, path
 
 def _sq_edt_1d(f: Tensor, axis_len: int) -> Tensor:
     # f [M, n, n] squared costs, minimised along dim 1: out[m, i, j] = min_k ((i - k)^2 + f[m, k, j])
+    if _use_triton(f):  # integer-valued costs, so the result is exact and equal to the eager path
+        m, nj = f.shape[0], f.shape[2]
+        out = torch.empty(m, nj, axis_len, dtype=f.dtype, device=f.device).transpose(1, 2)  # [M, n, n], i fastest
+        grid = (m, triton.cdiv(axis_len, 8))
+        _min_plus_kernel[grid](f, out, axis_len, *f.stride(), *out.stride(), BLOCK_I=8, BLOCK_J=triton.next_power_of_2(nj))
+        return out
     k = torch.arange(axis_len, device=f.device, dtype=f.dtype)
     sq = (k[:, None] - k[None]) ** 2  # [n(i), n(k)]
     return (sq[None, :, :, None] + f[:, None]).amin(dim=2)  # [M, n(i), n(k), n(j)] -> [M, n, n]
@@ -136,9 +205,12 @@ def sdf_lookup(sdf: Tensor, origin_xy: Tensor, spec: GridSpec, xy: Tensor, frame
     # sdf [B, F, n, n], origin_xy [B, 2], xy [B, K, 2], frame_idx [K] long -> [B, K]; bilinear, differentiable in xy
     half = spec.n * spec.res_m / 2
     g = (xy - origin_xy[:, None]) / half  # [B, K, 2] normalised (x, y)
+    # non-finite queries read the centre and return NaN: grid_sample's backward is unsafe on NaN grids
+    fin = torch.isfinite(g).all(dim=-1)  # [B, K]
+    g = torch.where(fin[..., None], g, torch.zeros_like(g))
     out = torch.zeros(xy.shape[:2], dtype=sdf.dtype, device=sdf.device)
     for f in torch.unique(frame_idx).tolist():
         k = (frame_idx == f).nonzero(as_tuple=True)[0]
         v = F.grid_sample(sdf[:, f : f + 1], g[:, k][:, None].to(sdf.dtype), mode="bilinear", padding_mode="border", align_corners=False)  # [B, 1, 1, Kf]
         out[:, k] = v[:, 0, 0]
-    return out
+    return torch.where(fin, out, torch.full_like(out, float("nan")))
