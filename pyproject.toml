@@ -11,6 +11,7 @@ dependencies = [
     "pyarrow",
     "zarr",
     "numpy",
+    "sentence-transformers>=6.2.0",
 ]
 
 [dependency-groups]

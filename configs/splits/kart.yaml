@@ -1,0 +1,3 @@
+cards_root: data/cards
+val_intents: [kart_camera_smooth_001, kart_warehouse_dock_001]
+heldout_statement_index: -1

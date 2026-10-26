@@ -9,13 +9,14 @@ NUM = re.compile(r"\d+(?:\.\d+)?")
 
 
 def cards():
-    return load_cards(ROOT, "train")
+    return load_cards(ROOT, "train") + load_cards(ROOT, "val")
 
 
 def test_ten_train_cards_load_and_compile():
     cs = cards()
     assert len(cs) == 10
     assert len({c.id for c in cs}) == 10
+    assert len(load_cards(ROOT, "train")) == 8 and len(load_cards(ROOT, "val")) == 2
     for c in cs:
         assert c.family == ["kart"] and c.task in ("lap", "goto")
         assert 3 <= len(c.statements) <= 5

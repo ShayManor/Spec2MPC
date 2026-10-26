@@ -15,12 +15,10 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
-from spec2mpc.features.metrics import episode_metrics
-from spec2mpc.features.phi import phi
 from spec2mpc.mpc.theta import ThetaBatch, sobol_theta
 from spec2mpc.robots.kart import Robot, sample_karts, sample_runtime
 from spec2mpc.sim.conditions import Conditions, sample_conditions
-from spec2mpc.sim.rollout import episode_timeout_s, run_episodes_with_stats
+from spec2mpc.sim.evaluate import rollout_metrics
 from spec2mpc.sim.scenes import TASK_LAP, Scene, generate_scenes
 from spec2mpc.sim.storage import META_FILE, read_meta, write_shard
 from spec2mpc.tokenize.path_tokens import path_tokens
@@ -69,9 +67,8 @@ def run_batch(cfg: DictConfig, block: int, out_dir: Path, device: torch.device) 
     t0 = time.perf_counter()
     robot, scene, theta, cond, episode_id, block_id, gen = sample_batch(cfg, block, int(cfg.envs_per_batch))
     r, sc = robot.to(device), scene.to(device)
-    traj, stats = run_episodes_with_stats(r, sc, theta.to(device), cond.to(device), cfg.sim, cfg.mpc, gen, tire_model=cfg.robots.tire_model)
-    metrics = episode_metrics(traj, r.params, sc, float(cfg.mpc.floors.m_floor_m))
-    ph = phi(metrics, r.params, sc, episode_timeout_s(sc, r.params, cfg.sim))
+    out = rollout_metrics(robot, scene, theta, cond, cfg, gen, device)
+    traj, stats, metrics, ph = out.traj, out.stats, out.metrics, out.phi
     tok = path_tokens(sc.path, sc, r.params, cfg.tokenize)
     rt = robot.runtime
     meta = {

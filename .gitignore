@@ -226,3 +226,6 @@ data/rollouts/
 .idea/
 .superpowers/
 data/previews/
+data/oracle/
+data/models/
+data/eval/

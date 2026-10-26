@@ -1,0 +1,52 @@
+f_max: 9
+tokens:
+  chassis: [kart_mass_kg, kart_yaw_inertia_kgm2, kart_wheelbase_m, kart_lf_m, kart_lr_m, kart_width_m, kart_length_m, kart_c_rr, kart_c_drag]
+  wheel_front: [kart_cf_Npr, kart_pac_B, kart_pac_C, kart_pac_E, kart_mu_nominal, kart_max_steer_rad, kart_max_steer_rate_radps]
+  wheel_rear: [kart_cr_Npr, kart_pac_B, kart_pac_C, kart_pac_E, kart_mu_nominal]
+  limits: [kart_v_max_mps, kart_a_lat_max_mps2, kart_a_long_max_mps2, kart_max_drive_force_N, kart_max_brake_force_N, kart_max_force_rate_Nps, kart_actuator_delay_s]
+  perception: [perc_range_m, perc_fov_rad, perc_loc_noise_std_m, perc_loc_bias_m, perc_latency_s, perc_p_false_occ, perc_p_false_free, perc_pred_error_m, perc_has_prediction]
+  runtime: [rt_control_rate_hz, rt_solver_iters, rt_perception_rate_hz]
+# column: [center, half_range]; x_n = (x - center) / half_range, from configs/robots/kart.yaml ranges
+norm:
+  kart_mass_kg: [210.0, 90.0]
+  kart_yaw_inertia_kgm2: [55.0, 35.0]
+  kart_wheelbase_m: [1.2, 0.2]
+  # lf_frac * wheelbase: min 0.40 * 1.0 = 0.40, max 0.60 * 1.4 = 0.84
+  kart_lf_m: [0.62, 0.22]
+  # (1 - lf_frac) * wheelbase has the same extremes as lf_m
+  kart_lr_m: [0.62, 0.22]
+  kart_width_m: [1.1, 0.2]
+  kart_length_m: [1.8, 0.3]
+  kart_c_rr: [0.015, 0.005]
+  kart_c_drag: [0.4, 0.2]
+  kart_cf_Npr: [18000.0, 12000.0]
+  kart_cr_Npr: [18000.0, 12000.0]
+  kart_pac_B: [9.0, 3.0]
+  kart_pac_C: [1.4, 0.2]
+  kart_pac_E: [-0.1, 0.4]
+  kart_mu_nominal: [0.95, 0.15]
+  kart_max_steer_rad: [0.475, 0.125]
+  kart_max_steer_rate_radps: [2.75, 1.25]
+  kart_v_max_mps: [17.5, 7.5]
+  # mu_nominal * 9.81: 0.8 * 9.81 = 7.848 to 1.1 * 9.81 = 10.791
+  kart_a_lat_max_mps2: [9.3195, 1.4715]
+  # max_drive_force_N / mass_kg: min 400 / 300 = 1.3333, max 1500 / 120 = 12.5
+  kart_a_long_max_mps2: [6.91667, 5.58333]
+  kart_max_drive_force_N: [950.0, 550.0]
+  kart_max_brake_force_N: [1650.0, 850.0]
+  kart_max_force_rate_Nps: [5000.0, 3000.0]
+  kart_actuator_delay_s: [0.05, 0.05]
+  perc_range_m: [25.0, 15.0]
+  perc_fov_rad: [3.8916, 2.3916]
+  perc_loc_noise_std_m: [0.1, 0.1]
+  perc_loc_bias_m: [0.05, 0.05]
+  perc_latency_s: [0.075, 0.075]
+  perc_p_false_occ: [0.00005, 0.00005]
+  perc_p_false_free: [0.025, 0.025]
+  perc_pred_error_m: [0.25, 0.25]
+  # bool: False -> -1, True -> +1
+  perc_has_prediction: [0.5, 0.5]
+  # discrete sets: center and half-width of min/max
+  rt_control_rate_hz: [30.0, 20.0]
+  rt_solver_iters: [22.5, 17.5]
+  rt_perception_rate_hz: [7.5, 2.5]

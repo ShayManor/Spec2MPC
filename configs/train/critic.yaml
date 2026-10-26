@@ -1,0 +1,39 @@
+# @package _global_
+defaults:
+  - /sim@sim: default
+  - /mpc@mpc: kart
+  - /robot_tokens@robot_tokens: kart
+  - /text@text: default
+  - /splits@splits: kart
+  - _self_
+  - override /hydra/job_logging: disabled
+  - override /hydra/hydra_logging: disabled
+
+data:
+  roots: [data/rollouts/gautschi]
+val_frac: 0.1  # fraction of (robot, path, theta) blocks held out, same split as W
+split_seed: 0
+members: 5
+hidden: 256
+n_layers: 3
+w_rank: 1.0
+rank_margin: 0.02  # normalized J; pairs closer than this carry no ranking loss
+lam: 1.0  # score = mean - lam * std over members
+opt: {lr: 1.0e-3, batch: 1024, epochs: 30}  # batch in rows; episode-major batches hold about this many rows
+episode_major: true  # batches hold every in-condition train card of each sampled episode
+flip_upweight: 4.0  # weight on within-card rank pairs that another train card orders the other way (1.0 = off)
+target_asinh: true  # MSE on asinh(J); the critic then predicts asinh-compressed J (rank loss uses raw J pairs)
+ci: {n_boot: 1000, alpha: 0.05}  # bootstrap over cards
+eval_batch: 8192
+log_every: 5  # epochs between val Spearman evaluations
+eval_only: null  # path to a model.pt: skip training and write metrics for that checkpoint
+d_text: null  # filled at runtime from the text encoder
+d_slot: null
+seed: 0
+device: cuda
+out_dir: data/models/critic
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

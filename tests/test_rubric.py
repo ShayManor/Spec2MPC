@@ -3,10 +3,11 @@ from pathlib import Path
 import pytest
 import torch
 import yaml
+from omegaconf import OmegaConf
 
 from spec2mpc.features.metrics import METRIC_NAMES
 from spec2mpc.rubric.cards import Card, CardError, compile_card, compile_expr, load_cards
-from spec2mpc.rubric.scoring import card_score, in_card_conditions, score
+from spec2mpc.rubric.scoring import card_score, in_card_conditions, sample_card_conditions, score, tier_passes
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards"
 
@@ -201,3 +202,40 @@ def test_non_numeric_weight_is_card_error(where):
         raw["rubric"]["shaping"]["weight"] = "abc"
     with pytest.raises(CardError, match="kart_bad_001"):
         compile_card(raw)
+
+
+@pytest.fixture
+def wet_card() -> Card:
+    raw = raw_card()
+    raw["rubric"]["conditions"] = {"friction_scale": [0.6, 0.8], "episodes": 2}
+    return compile_card(raw)
+
+
+@pytest.fixture
+def sim_cfg():
+    return OmegaConf.load("configs/sim/default.yaml")
+
+
+def test_card_conditions_inside_card_ranges(wet_card, sim_cfg, gen):
+    c = sample_card_conditions(wet_card, 2000, sim_cfg, gen)
+    assert (c.friction_scale >= 0.6).all() and (c.friction_scale <= 0.8).all()
+    assert c.mass_scale.min() >= sim_cfg.conditions.mass_scale[0]  # unconstrained key keeps the prior
+    assert c.mass_scale.max() <= sim_cfg.conditions.mass_scale[1]
+    assert in_card_conditions(wet_card, {"friction_scale": c.friction_scale}).all()
+    again = sample_card_conditions(wet_card, 2000, sim_cfg, torch.Generator().manual_seed(0))
+    assert torch.equal(again.friction_scale, c.friction_scale) and torch.equal(again.seed, c.seed)
+
+
+def test_tier_passes_consistent_with_score(card_fast):
+    raw = raw_card()
+    raw["rubric"].pop("shaping")
+    raw["rubric"]["penalties"] = []
+    card = compile_card(raw)
+    g = torch.Generator().manual_seed(0)
+    m = metrics(completion=(torch.rand(64, generator=g) < 0.7).double(),
+                lap_time_s=torch.rand(64, generator=g, dtype=torch.float64) * 700)
+    tp = tier_passes(card, m)
+    assert tp.shape == (64, 4) and tp.dtype == torch.bool
+    assert torch.equal(tp.sum(1).double(), score(card, m).floor())
+    assert not (tp[:, 1:] & ~tp[:, :-1]).any()  # tier i passes only if every lower tier passes
+    assert torch.equal(tier_passes(card_fast, m), tp)  # shaping and penalties do not change tier passes

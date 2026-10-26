@@ -1,0 +1,38 @@
+# @package _global_
+defaults:
+  - /mpc@mpc: kart
+  - /robot_tokens@robot_tokens: kart
+  - /text@text: default
+  - /splits@splits: kart
+  - _self_
+  - override /hydra/job_logging: disabled
+  - override /hydra/hydra_logging: disabled
+
+# rollouts use the sim, mpc and robots of the val oracle run ({oracle_root}/val/config.yaml), whose problems they share
+methods: [default, oracle, oracle_bo, mean_theta, nn_retrieval, slot_only, applv_lang, amortized, bon_pred, refine, bon_true]
+budgets: {bon_pred: [4, 16, 64], refine: [10, 50, 200], bon_true: [4, 16], oracle_bo: [12, 48]}
+seeds: [0, 1, 2]  # training seeds of the learned methods; non-learned methods run once (seed 0)
+n_xi: 16  # card-condition draws per (statement, problem)
+xi_seed: 99
+bon_true_xi: 2  # global-prior draws per bon_true candidate
+lam: 1.0  # critic score = mean - lam * std
+refine: {lr: 0.05, trust_radius: 0.3}
+n_xi_model: 8  # global-prior draws per context for W
+min_gap: 0.05  # pairs with J_oracle - J_default <= min_gap are excluded from Jhat
+n_boot: 1000
+oracle_root: data/oracle  # {train,val}/{oracle.parquet, at_k.parquet, config.yaml, problems.pt}
+models:  # {seed} is filled per training seed
+  world_model: data/models/world_model/seed{seed}/model.pt
+  critic: data/models/critic/seed{seed}/model.pt
+  policy_full: data/models/policy_full/seed{seed}/model.pt
+  policy_zero: data/models/policy_zero/seed{seed}/model.pt
+  applv: data/models/applv/seed{seed}/model.pt
+group: a  # eval group tag: its own default and oracle anchors normalize its rows (eval_payload.sh passes a or b)
+out_dir: data/eval  # {method}_{K}_{seed}_{group}.parquet and .json, summary.parquet
+plot_dir: data/previews
+device: cuda
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

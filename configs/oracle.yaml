@@ -1,0 +1,33 @@
+defaults:
+  - sim: default
+  - mpc: kart
+  - robots: kart
+  - tokenize: path
+  - splits: kart
+  - _self_
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+
+split: train  # train: train cards; val: train + val cards
+problems:
+  seed_train: 1001
+  seed_val: 2002
+  n_per_task: {lap: 4, goto: 4}
+runtime: {control_rate_hz: 20.0, solver_iters: 10, perception_rate_hz: 10.0}
+cmaes:
+  lam: 12
+  generations: 12
+  sigma0: 0.3
+  xi_per_candidate: 4  # condition draws per candidate, shared by the lam candidates of a pair
+  seed: 0  # CMA-ES sampling generator
+final_xi: 16  # condition draws per pair for the theta_mean / theta_best / theta_default finals
+at_k: [12, 48, 144]  # candidate evaluations at which the CMA mean is recorded
+xi_seed: 7
+out_dir: data/oracle
+device: cpu
+transfer: {go_margin: 0.2, min_gap: 0.05}  # min_gap: problems with J_oracle - J_default <= min_gap are skipped
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

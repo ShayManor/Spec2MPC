@@ -1,0 +1,41 @@
+# @package _global_
+defaults:
+  - /sim@sim: default
+  - /mpc@mpc: kart
+  - /robots@robots: kart
+  - /tokenize@tokenize: path
+  - /robot_tokens@robot_tokens: kart
+  - /text@text: default
+  - /splits@splits: kart
+  - _self_
+  - override /hydra/job_logging: disabled
+  - override /hydra/hydra_logging: disabled
+
+data:
+  roots: [data/rollouts/gautschi]
+  val_frac: 0.1  # same block split as W and V; V(W) contexts come from train blocks only
+  split_seed: 0
+model: {d_model: 128, n_layers: 4, n_heads: 4, dropout: 0.1, d_latent: 8, hidden: 256}
+text_mode: full  # full | zero (slot_only: text_emb multiplied by 0)
+beta: 0.1  # KL weight in the ELBO
+epochs_distill: 200
+steps_vw: 5000
+alpha_distill: 1.0  # ELBO weight in stage B
+n_samples: 4  # prior draws per context in the V(W) objective
+n_xi: 8  # global-prior condition draws per context and step
+lam: 1.0  # critic score = mean - lam * std
+opt: {lr: 3.0e-4, batch: 256}
+world_model: data/models/world_model/seed0/model.pt
+critic: data/models/critic/seed0/model.pt
+oracle: data/oracle/train/oracle.parquet
+log_every: 50  # stage-A epochs and stage-B steps between printed records
+d_text: null  # filled at runtime from the text encoder
+d_slot: null
+seed: 0
+device: cuda
+out_dir: data/models/policy  # writes {out_dir}_{text_mode}/seed{seed}
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

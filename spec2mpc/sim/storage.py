@@ -1,9 +1,10 @@
+import hashlib
 import json
 import shutil
 import subprocess
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 import numpy as np
 import pyarrow as pa
@@ -38,6 +39,21 @@ def git_hash() -> str:
         return h + ("+dirty" if dirty.strip() else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+
+
+CODE_DIRS = ("spec2mpc", "scripts", "configs")
+CODE_SUFFIXES = (".py", ".yaml", ".sh")
+
+
+def code_digest(root: Optional[Path] = None) -> str:
+    # sha256 over the sorted relative paths and bytes of the code files under CODE_DIRS of root (default: this repo)
+    root = Path(__file__).resolve().parents[2] if root is None else Path(root)
+    files = sorted(p.relative_to(root).as_posix() for d in CODE_DIRS if (root / d).is_dir()
+                   for p in (root / d).rglob("*") if p.is_file() and p.suffix in CODE_SUFFIXES)
+    h = hashlib.sha256()
+    for f in files:
+        h.update(f.encode() + b"\0" + (root / f).read_bytes() + b"\0")
+    return h.hexdigest()
 
 
 def _np(x: Tensor) -> np.ndarray:

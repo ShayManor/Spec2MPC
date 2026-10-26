@@ -1,0 +1,33 @@
+# @package _global_
+defaults:
+  - /sim@sim: default
+  - /mpc@mpc: kart
+  - /robots@robots: kart
+  - /tokenize@tokenize: path
+  - /robot_tokens@robot_tokens: kart
+  - /text@text: default
+  - /splits@splits: kart
+  - _self_
+  - override /hydra/job_logging: disabled
+  - override /hydra/hydra_logging: disabled
+
+stage: bc  # bc: fit theta* on the distill rows | rl: REINFORCE from the bc checkpoint on train-card rewards
+data:
+  roots: [data/rollouts/gautschi]  # accepted for the shared payload command line; APPLV reads no rollouts
+model: {d_model: 128, n_layers: 4, n_heads: 4, dropout: 0.1}  # ContextEncoder, same as the policy
+hidden: 256
+bc: {epochs: 200, lr: 3.0e-4, batch: 256}
+rl: {iterations: 10, sigma: 0.15, n_samples: 8, xi_per_sample: 2, rows_per_iter: 64, lr: 1.0e-4}
+oracle: data/oracle/train/oracle.parquet  # problems are rebuilt from config.yaml next to it
+bc_checkpoint: ${out_dir}/seed${seed}/bc.pt
+log_every: 10  # bc epochs between printed records; rl prints every iteration
+d_text: null  # filled at runtime from the text encoder
+d_slot: null
+seed: 0
+device: cuda
+out_dir: data/models/applv  # writes {out_dir}/seed{seed}/{bc.pt, bc_metrics.json, model.pt, rl_state.pt, metrics.json}
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

@@ -1,0 +1,27 @@
+# @package _global_
+defaults:
+  - /sim@sim: default
+  - /mpc@mpc: kart
+  - /robot_tokens@robot_tokens: kart
+  - _self_
+  - override /hydra/job_logging: disabled
+  - override /hydra/hydra_logging: disabled
+
+data:
+  roots: [data/rollouts/gautschi]
+  val_frac: 0.1  # fraction of (robot, path, theta) blocks held out; all 16 xi of a block share a side
+  split_seed: 0
+model: {d_model: 128, n_layers: 4, n_heads: 4, dropout: 0.1}
+opt: {lr: 3.0e-4, weight_decay: 0.01, batch: 512, epochs: 60}
+huber_delta: 1.0  # on robust z = asinh((phi - median) / (IQR / 1.349))
+ridge_lambda: 1.0  # ridge baseline on flattened standardized inputs
+eval_batch: 4096
+log_every: 1  # epochs between val evaluations; the checkpoint is the best evaluated epoch
+seed: 0
+device: cuda
+out_dir: data/models/world_model
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

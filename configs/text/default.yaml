@@ -1,0 +1,7 @@
+slots:
+  scales: {t_max_s: 60.0, v_max_mps: 5.0, a_lat_max_g: 0.3, energy_max_Wh: 100.0, generic: 1.0}
+encoder:
+  backend: sentence_transformers
+  model: sentence-transformers/all-MiniLM-L6-v2
+  device: cpu
+  hashed: {dim: 512, word_ngrams: 2, char_ngrams: 3}

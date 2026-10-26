@@ -109,3 +109,18 @@ def test_stale_temp_dir_is_replaced(tmp_path, shard_inputs):
     write_shard(tmp_path, "s", robot, scene, theta, cond, traj, metrics, phi, tok, store_hz=10.0, meta={}, **ids)
     assert not stale.exists()
     assert read_shard(tmp_path / "s")[0].num_rows == B
+
+
+def test_code_digest_tracks_code_files_only(tmp_path):
+    from spec2mpc.sim.storage import code_digest
+    for d, f in (("spec2mpc", "a.py"), ("scripts", "b.sh"), ("configs", "c.yaml")):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / f).write_text("x = 1\n")
+    d0 = code_digest(tmp_path)
+    assert len(d0) == 64 and code_digest(tmp_path) == d0
+    (tmp_path / "spec2mpc" / "notes.txt").write_text("not code")
+    (tmp_path / "data.py").write_text("outside the code dirs")
+    assert code_digest(tmp_path) == d0
+    (tmp_path / "configs" / "c.yaml").write_text("x = 2\n")
+    assert code_digest(tmp_path) != d0
+    assert len(code_digest()) == 64  # this repo

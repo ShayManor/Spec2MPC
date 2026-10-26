@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Mapping
 
 import torch
+from omegaconf import DictConfig
 from torch import Tensor
 
-from spec2mpc.rubric.cards import Card
+from spec2mpc.rubric.cards import CONDITION_KEYS, Card
+from spec2mpc.sim.conditions import Conditions, sample_conditions
 
 
 def score(card: Card, metrics: Mapping[str, Tensor]) -> Tensor:
@@ -39,6 +42,17 @@ def score(card: Card, metrics: Mapping[str, Tensor]) -> Tensor:
     return j
 
 
+def tier_passes(card: Card, metrics: Mapping[str, Tensor]) -> Tensor:
+    """[E, n_tiers] bool: tier i passes iff tiers 0..i all pass, as in score."""
+    env = dict(metrics)
+    passed = torch.ones_like(next(iter(env.values())), dtype=torch.bool)
+    out = []
+    for tier in card.rubric.tiers:
+        passed = passed & tier.expr(env)  # NaN compares False
+        out.append(passed)
+    return torch.stack(out, dim=1)
+
+
 def in_card_conditions(card: Card, cond: Mapping[str, Tensor]) -> Tensor:
     """cond: Conditions field name -> [E]. Returns [E] bool."""
     ref = next(iter(cond.values()))
@@ -49,8 +63,23 @@ def in_card_conditions(card: Card, cond: Mapping[str, Tensor]) -> Tensor:
     return ok
 
 
+def sample_card_conditions(card: Card, n: int, sim_cfg: DictConfig, gen: torch.Generator) -> Conditions:
+    """Global prior draw [n], then each Conditions field the card constrains redrawn uniformly in the card range."""
+    cond = sample_conditions(n, sim_cfg, gen)
+    redrawn = {}
+    for k in CONDITION_KEYS:  # card condition keys are Conditions field names, as in in_card_conditions
+        if k in card.rubric.conditions:
+            lo, hi = (float(x) for x in card.rubric.conditions[k])
+            redrawn[k] = lo + (hi - lo) * torch.rand(n, generator=gen, dtype=torch.float32)
+    return replace(cond, **redrawn)
+
+
 def card_score(card: Card, metrics: Mapping[str, Tensor], cond: Mapping[str, Tensor]) -> tuple[float, int, bool]:
     ok = in_card_conditions(card, cond)  # [E]
     n_used = int(ok.sum())
     mean_j = float(score(card, metrics)[ok].mean()) if n_used else float("nan")
     return mean_j, n_used, n_used < card.rubric.conditions["episodes"]
+
+
+def card_max_score(card: Card) -> float:
+    return len(card.rubric.tiers) + (card.rubric.shaping.weight if card.rubric.shaping else 0)
