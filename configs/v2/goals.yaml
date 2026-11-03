@@ -1,0 +1,97 @@
+# Goal types for the generated suite (Task 5). Builders live in spec2mpc/tasks/goals.py under the same names.
+# scene_kinds: scene for a card = scene_kinds[scene_seed % len(scene_kinds)]
+# templates: command templates; {slots} are filled with entity labels, the style phrase is appended
+# overhead_s: fixed time on top of dist / v_nom for the time terms; horizon_s: minimum episode length
+styles:
+  neutral: [""]
+  gentle: ["gently", "smoothly and gently", "without any jerky moves"]
+  fast: ["quickly", "as fast as you can", "fast"]
+  careful: ["carefully", "carefully, keeping clear of everything else", "with care"]
+  energy_saving: ["while saving energy", "efficiently, sparing the battery", "using as little energy as you can"]
+
+# nominal motion scales per family for the style terms (subject speed, accel, jerk, energy per metre)
+families:
+  arm: {v_nom_mps: 0.3, a_nom_mps2: 2.0, j_nom_mps3: 30.0, energy_J_per_m: 30.0}
+  mobile_manipulator: {v_nom_mps: 0.3, a_nom_mps2: 1.5, j_nom_mps3: 20.0, energy_J_per_m: 80.0}
+  mobile_base: {v_nom_mps: 0.6, a_nom_mps2: 1.0, j_nom_mps3: 10.0, energy_J_per_m: 50.0}
+  rover2d: {v_nom_mps: 0.8, a_nom_mps2: 1.5, j_nom_mps3: 15.0, energy_J_per_m: 30.0}
+  kart: {v_nom_mps: 6.0, a_nom_mps2: 4.0, j_nom_mps3: 30.0, energy_J_per_m: 400.0}
+  quadruped: {v_nom_mps: 0.6, a_nom_mps2: 2.0, j_nom_mps3: 40.0, energy_J_per_m: 150.0}
+  humanoid: {v_nom_mps: 0.5, a_nom_mps2: 2.0, j_nom_mps3: 40.0, energy_J_per_m: 300.0}
+  quadrotor: {v_nom_mps: 1.5, a_nom_mps2: 4.0, j_nom_mps3: 40.0, energy_J_per_m: 200.0}
+
+goals:
+  # ---- manipulation ----
+  reach: {families: [arm, mobile_manipulator], scene_kinds: [tabletop, shelf], overhead_s: 1, horizon_s: 10,
+          templates: ["move the gripper just above the {obj}", "put your hand right over the {obj}"]}
+  pick: {families: [arm, mobile_manipulator], scene_kinds: [tabletop, kitchen], overhead_s: 3, horizon_s: 20,
+         templates: ["pick up the {obj}", "grab the {obj} and lift it", "lift the {obj} off the {support}"]}
+  place: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 4, horizon_s: 25,
+          templates: ["put the {obj} on the {target}", "place the {obj} onto the {target}"]}
+  stack: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 4, horizon_s: 25,
+          templates: ["stack the {obj} on top of the {target}", "put the {obj} on the {target}"]}
+  push: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 3, horizon_s: 25,
+         templates: ["push the {obj} into the {target}", "shove the {obj} over to the {target}"]}
+  slide: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 3, horizon_s: 25,
+          templates: ["slide the {obj} across the table into the {target}", "slide the {obj} to the {target}, keep it standing"]}
+  insert: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 6, horizon_s: 30,
+           templates: ["insert the {obj} into the {target}", "put the {obj} into the {target}"]}
+  level_carry: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 4, horizon_s: 25,
+                templates: ["carry the {obj} to the {target} and keep it level", "bring the {obj} over to the {target} without tipping it"]}
+  precise_place: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 5, horizon_s: 30,
+                  templates: ["place the {obj} exactly in the middle of the {target}", "set the {obj} down precisely centred on the {target}"]}
+  pour: {families: [arm, mobile_manipulator], scene_kinds: [kitchen], overhead_s: 5, horizon_s: 25,
+         templates: ["pour the {obj} into the {target}", "tip the {obj} out over the {target}"]}
+  wipe: {families: [arm, mobile_manipulator], scene_kinds: [kitchen], overhead_s: 5, horizon_s: 25,
+         templates: ["wipe up the {target} with the {obj}", "use the {obj} to scrub the {target}"]}
+  open_door: {families: [arm, mobile_manipulator], scene_kinds: [kitchen], overhead_s: 4, horizon_s: 25,
+              templates: ["open the {target}", "swing the {target} open"]}
+  open_drawer: {families: [arm, mobile_manipulator], scene_kinds: [drawer_cabinet], overhead_s: 4, horizon_s: 25,
+                templates: ["open the {target}", "pull the {target} open"]}
+  close_drawer: {families: [arm, mobile_manipulator], scene_kinds: [drawer_cabinet], overhead_s: 4, horizon_s: 25,
+                 templates: ["close the {target}", "push the {target} shut"]}
+  stow: {families: [arm, mobile_manipulator], scene_kinds: [drawer_cabinet], overhead_s: 5, horizon_s: 30,
+         templates: ["put the {obj} away in the {target}", "drop the {obj} into the {target}"]}
+  shelf_place: {families: [arm, mobile_manipulator], scene_kinds: [shelf], overhead_s: 5, horizon_s: 30,
+                templates: ["put the {obj} on the {target}", "move the {obj} onto the {target}"]}
+  rearrange: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 8, horizon_s: 45,
+              templates: ["put the {obj} in the {target} and the {obj2} in the {target2}", "tidy up: {obj} to the {target}, {obj2} to the {target2}"]}
+  handover: {families: [arm, mobile_manipulator], scene_kinds: [tabletop], overhead_s: 4, horizon_s: 25,
+             templates: ["hand the {obj} to the person", "give the {obj} to the person next to the table"]}
+  # ---- locomotion ----
+  walk_to: {families: [quadruped, humanoid], scene_kinds: [floor_obstacles, terrain], overhead_s: 2, horizon_s: 30,
+            templates: ["walk to the {target}", "go over to the {target}"]}
+  climb: {families: [quadruped, humanoid], scene_kinds: [terrain], overhead_s: 4, horizon_s: 40,
+          templates: ["climb the steps onto the {target}", "get up onto the {target}"]}
+  carry: {families: [quadruped], scene_kinds: [floor_obstacles], overhead_s: 2, horizon_s: 40,
+          templates: ["carry the {obj} on your back to the {target}", "bring the {obj} you are carrying to the {target} without dropping it"]}
+  # ---- navigation ----
+  go_to: {families: [mobile_base, rover2d, mobile_manipulator], scene_kinds: [floor_obstacles], overhead_s: 2, horizon_s: 30,
+          templates: ["drive to the {target}", "go to the {target}", "navigate over to the {target}"]}
+  dock: {families: [mobile_base, rover2d, mobile_manipulator], scene_kinds: [floor_obstacles], overhead_s: 4, horizon_s: 40,
+         templates: ["dock at the {target}", "park yourself at the {target}, facing it"]}
+  follow_course: {families: [mobile_base, rover2d, kart, quadruped], scene_kinds: [course], overhead_s: 2, horizon_s: 40,
+                  templates: ["follow the course to the {target}", "drive through the course to the end"]}
+  drive_lap: {families: [kart, rover2d, mobile_base], scene_kinds: [track], overhead_s: 2, horizon_s: 60,
+              templates: ["drive one lap and stop in the {target}", "do a lap of the track and pull into the {target}"]}
+  lane_follow: {families: [kart, mobile_base], scene_kinds: [road], overhead_s: 2, horizon_s: 40,
+                templates: ["drive down the road to the {target}", "follow the road to its end, mind the cone"]}
+  park: {families: [kart], scene_kinds: [road], overhead_s: 6, horizon_s: 40,
+         templates: ["park in the free {target} between the cars", "pull into the {target}"]}
+  # ---- flight ----
+  fly_to: {families: [quadrotor], scene_kinds: [airspace], overhead_s: 3, horizon_s: 30,
+           templates: ["fly to the {target}", "go to the {target}"]}
+  hover: {families: [quadrotor], scene_kinds: [airspace], overhead_s: 4, horizon_s: 30,
+          templates: ["hover at the {target}", "fly to the {target} and hold still there"]}
+  gate_course: {families: [quadrotor], scene_kinds: [airspace], overhead_s: 3, horizon_s: 40,
+                templates: ["fly through the gates to the {target}", "race the gate course to the {target}"]}
+  inspect: {families: [quadrotor], scene_kinds: [airspace], overhead_s: 4, horizon_s: 40,
+            templates: ["inspect the {target}: hold at its viewpoint facing it", "fly to the {target} viewpoint and look at it"]}
+
+splits:
+  heldout_type: quadrotor
+  heldout_type_fallback: rover2d   # used when no quadrotor cards exist (quadrotors dropped)
+  heldout_goals: [stack, close_drawer, dock, climb]
+  # humanoid: none held out (HumanoidBench uses H1); panda stays in train (RoboLab and LIBERO use Franka)
+  heldout_robots: {arm: [ur10e], mobile_manipulator: [tiago], mobile_base: [omni], quadruped: [anymal_c]}
+  val_frac: 0.1   # by scene seed: held-out scenes

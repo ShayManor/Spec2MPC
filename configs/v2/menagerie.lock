@@ -1,0 +1,5 @@
+# MuJoCo Menagerie pin for configs/v2/robots members (scripts/v2/fetch_menagerie.py checks out this commit).
+# path is the default checkout location; the env var MENAGERIE_PATH overrides it.
+repo: https://github.com/google-deepmind/mujoco_menagerie
+commit: 98a70c569c4c1b6da467a20012f766ee1f8dc521
+path: /home/shay/languagespec-assets/mujoco_menagerie

@@ -239,3 +239,14 @@ def test_tier_passes_consistent_with_score(card_fast):
     assert torch.equal(tp.sum(1).double(), score(card, m).floor())
     assert not (tp[:, 1:] & ~tp[:, :-1]).any()  # tier i passes only if every lower tier passes
     assert torch.equal(tier_passes(card_fast, m), tp)  # shaping and penalties do not change tier passes
+
+
+def test_load_test_cards_only_loads_the_eval_test_splits(tmp_path):
+    from spec2mpc.rubric.cards import load_test_cards
+    for bad in ("train", "val", "test_robot_family", "../test_intent"):
+        with pytest.raises(PermissionError):
+            load_test_cards(tmp_path, bad)
+    (tmp_path / "test_intent").mkdir()
+    assert load_test_cards(tmp_path, "test_intent") == []
+    with pytest.raises(PermissionError):
+        load_cards(tmp_path, "test_intent")

@@ -9,7 +9,8 @@ defaults:
   - override /hydra/hydra_logging: disabled
 
 # rollouts use the sim, mpc and robots of the val oracle run ({oracle_root}/val/config.yaml), whose problems they share
-methods: [default, oracle, oracle_bo, mean_theta, nn_retrieval, slot_only, applv_lang, amortized, bon_pred, refine, bon_true]
+eval_split: val  # val, test_intent or test_compose: its units, cards and oracle run ({oracle_root}/{eval_split})
+methods: [default, oracle, oracle_bo, mean_theta, nn_retrieval, llm_zeroshot, llm_fewshot, slot_only, applv_lang, amortized, bon_pred, refine, bon_true]
 budgets: {bon_pred: [4, 16, 64], refine: [10, 50, 200], bon_true: [4, 16], oracle_bo: [12, 48]}
 seeds: [0, 1, 2]  # training seeds of the learned methods; non-learned methods run once (seed 0)
 n_xi: 16  # card-condition draws per (statement, problem)
@@ -36,3 +37,35 @@ hydra:
   output_subdir: null
   run:
     dir: .
+chunk: 0  # episodes per rollout call, each with its own fixed generator; 0 is one call (controller groups need > 0)
+shard: null  # "i/n": roll out only uncached chunks c with c % n == i (parallel workers); a run without it assembles
+nav_stack:  # orchestrator + ROS 2 Nav2 (Jazzy) lanes, scripts/nav2_lane.py
+  ros_setup: /opt/ros/jazzy/setup.bash
+  ros_python: /usr/bin/python3.12
+  domain_id_base: 1  # lane i uses ROS_DOMAIN_ID domain_id_base + i
+  controller_frequency_hz: 20.0  # Nav2 default controller_frequency; the bridge waits for /cmd_vel on its ticks
+  cmd_vel_stamped: false  # Jazzy default enable_stamped_cmd_vel
+  cmd_wait_s: 2.0  # wall-clock wait for Nav2's /cmd_vel on a tick
+  startup_timeout_s: 120.0
+  max_goal_retries: 3  # the orchestrator re-sends an aborted goal
+  waypoint_spacing_m: 5.0  # lap waypoints along every lap
+  map_res_m: 0.2
+  map_margin_m: 3.0
+  scan_beams: 360
+  scan_range_m: 10.0  # half the perceived grid
+  scan_iters: 24
+  speed_tau_s: 0.5  # kart base driver: speed loop time constant
+  min_speed_mps: 0.5  # kart base driver: speed floor of the steering relation
+  scale_sampling: false  # MPPI vx_std / wz_std scaled with the robot's limits (default ratio)
+llm:  # LLM baselines, spec2mpc/baselines/llm.py; thetas cached by scripts/run_llm_baseline.py
+  model: gpt-6.1-sol
+  effort: high
+  modes: [llm_zeroshot, llm_fewshot]
+  workers: 8
+  cache_dir: data/llm  # {mode}.json
+vla:  # pi0 LoRA VLA, spec2mpc/baselines/vla.py
+  px: 224  # render size
+  view_m: 20.0  # render window, the perceived grid size
+  pred_frame: 2  # perceived frame shown in blue (frame_offsets_s[2] = 1.0 s ahead)
+  replan_steps: 5  # control steps of each sampled action chunk that are executed
+  checkpoint: null  # openpi checkpoint step directory, set per run

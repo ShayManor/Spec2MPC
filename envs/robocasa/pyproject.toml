@@ -1,0 +1,33 @@
+# Separate env for the manipulation training sources (RoboCasa365, robosuite, Meta-World).
+# Its mujoco pin (3.3.1, from RoboCasa) conflicts with the core env, so spec2mpc is not installed here:
+# run with PYTHONPATH=<repo root>. Keep the venv and the RoboCasa assets (about 10 GB) outside the repo:
+#   export UV_PROJECT_ENVIRONMENT=/home/shay/languagespec-assets/venvs/robocasa
+#   ~/.local/bin/uv sync --project envs/robocasa
+#   ~/.local/bin/uv run --project envs/robocasa python -m robocasa.scripts.setup_macros
+#   ~/.local/bin/uv run --project envs/robocasa python -m robocasa.scripts.download_kitchen_assets
+[project]
+name = "spec2mpc-env-robocasa"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "robosuite",
+    "robocasa",
+    "metaworld==3.0.0",  # 3.1.x pins mujoco==3.3.0, which conflicts with RoboCasa's mujoco==3.3.1
+    "numpy",
+    "pyyaml",
+    "pytest",
+]
+
+[tool.uv]
+package = false
+# RoboCasa365 lists lerobot and tianshou for dataset conversion and training only; neither is imported by
+# the environments, and both pull CUDA torch, so they are dropped here
+override-dependencies = [
+    "lerobot; sys_platform == 'never'",
+    "tianshou; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+# RoboCasa365 v1.0.1 asks for robosuite master; both pinned to the commits current on 2026-11-02
+robosuite = { git = "https://github.com/ARISE-Initiative/robosuite", rev = "5ce6643f3092639d08f7b0f90ed1c6a84f50552c" }
+robocasa = { git = "https://github.com/robocasa/robocasa", rev = "3443cdf3dd20f9ae8ed41adba442059b506891d0" }

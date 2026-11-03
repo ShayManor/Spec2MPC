@@ -112,6 +112,58 @@ def test_same_theta_same_J(units, problems, cards, tiny):
     assert d["J_norm"][0] == pytest.approx(d["J"][0] / card_max_score(cards[sub[0].card_id]))
 
 
+def test_controller_chunks_cover_layout(units, problems, cards, tiny):
+    # a stub controller sees every episode once across chunks, and chunked results are reproducible
+    from spec2mpc.baselines.controllers import targets_to_rates
+    sub = [next(u for u in units if u.task == "lap"), next(u for u in units if u.task == "goto")]
+    lay = make_layout(sub, problems, cards, 2, 99, tiny.sim)
+    th = torch.zeros(len(sub), problems.n, D_THETA)
+    seen = []
+
+    def factory(robot, scene, cond, episodes):
+        seen.append(episodes.tolist())
+        B = episodes.numel()
+        return lambda x, sdf, origin, t: (targets_to_rates(x, torch.zeros(B), torch.full((B,), 50.0), robot.params,
+                                                           0.05), torch.ones(B, dtype=torch.bool))
+
+    a = run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4)
+    assert seen == [[0, 1, 2, 3], [4, 5]]
+    b = run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4)
+    assert torch.equal(a["J"], b["J"])
+
+
+def test_chunk_cache_resumes(units, problems, cards, tiny, tmp_path):
+    # chunks saved by a first run are reused: a resumed run recomputes only the missing chunk, with identical results
+    from spec2mpc.baselines.controllers import targets_to_rates
+    sub = [next(u for u in units if u.task == "lap"), next(u for u in units if u.task == "goto")]
+    lay = make_layout(sub, problems, cards, 2, 99, tiny.sim)
+    th = torch.zeros(len(sub), problems.n, D_THETA)
+    seen = []
+
+    def factory(robot, scene, cond, episodes):
+        seen.append(episodes.tolist())
+        B = episodes.numel()
+        return lambda x, sdf, origin, t: (targets_to_rates(x, torch.zeros(B), torch.full((B,), 50.0), robot.params,
+                                                           0.05), torch.ones(B, dtype=torch.bool))
+
+    a = run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4, cache=tmp_path)
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["chunk0000.pt", "chunk0001.pt"]
+    (tmp_path / "chunk0001.pt").unlink()
+    seen.clear()
+    b = run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4, cache=tmp_path)
+    assert seen == [[4, 5]]
+    assert torch.equal(a["J"], b["J"])
+    # shard workers split the missing chunks; each returns None until every chunk is cached
+    (tmp_path / "chunk0000.pt").unlink()
+    (tmp_path / "chunk0001.pt").unlink()
+    seen.clear()
+    assert run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4, cache=tmp_path, shard=(1, 2)) is None
+    assert seen == [[4, 5]]
+    seen.clear()
+    c = run_thetas(th, lay, problems, cards, tiny, CPU, factory, chunk=4, cache=tmp_path, shard=(0, 2))
+    assert seen == [[0, 1, 2, 3]] and torch.equal(a["J"], c["J"])
+
+
 def test_floor_violation_rate_zero_for_extremes(tiny):
     params8 = sample_karts(8, tiny.robots, RuntimeConfig(20.0, 2, 10.0), torch.Generator().manual_seed(0)).params
     th = torch.cat([torch.full((4, 14), -1.0), torch.full((4, 14), 1.0)])

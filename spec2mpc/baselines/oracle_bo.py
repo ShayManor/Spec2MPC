@@ -19,12 +19,12 @@ from torch import Tensor
 from spec2mpc.eval.transfer import transfer_rollouts
 from spec2mpc.mpc.theta import THETA_NAMES, ThetaBatch, default_theta, denormalize_theta, normalize_theta
 from spec2mpc.robots.kart import RuntimeConfig
-from spec2mpc.rubric.cards import Card, load_cards
+from spec2mpc.rubric.cards import Card, load_cards, load_test_cards
 from spec2mpc.rubric.scoring import sample_card_conditions, score
 from spec2mpc.search.cmaes import BatchedCMAES
 from spec2mpc.sim.conditions import Conditions
 from spec2mpc.sim.evaluate import rollout_metrics
-from spec2mpc.sim.problems import Problems, problem_digest, sample_problems, stable_seed
+from spec2mpc.sim.problems import Problems, problem_digest, problem_split, sample_problems, stable_seed
 from spec2mpc.sim.storage import code_digest, git_hash
 
 STATE_FILE = "state.pt"
@@ -43,14 +43,19 @@ class OracleJob:
 
 
 def build_job(cfg: DictConfig) -> OracleJob:
-    # cfg: root oracle config -> problems for cfg.split and the cards it optimizes (val: train + val cards)
+    # cfg: root oracle config -> problems for cfg.split and the cards it optimizes (val: train + val cards; a test
+    # split: its own cards on the val problems)
     split = str(cfg.split)
-    assert split in ("train", "val"), f"oracle split must be train or val, got {split}"
+    assert split in ("train", "val", "test_intent", "test_compose"), f"unknown oracle split {split}"
     root = Path(cfg.splits.cards_root)
-    cards = load_cards(root, "train") + (load_cards(root, "val") if split == "val" else [])
+    if split.startswith("test_"):
+        cards = load_test_cards(root, split)
+    else:
+        cards = load_cards(root, "train") + (load_cards(root, "val") if split == "val" else [])
     rt = RuntimeConfig(control_rate_hz=float(cfg.runtime.control_rate_hz), solver_iters=int(cfg.runtime.solver_iters),
                        perception_rate_hz=float(cfg.runtime.perception_rate_hz))
-    problems = sample_problems(cfg.problems.n_per_task, cfg, int(cfg.problems[f"seed_{split}"]), rt, split)
+    ps = problem_split(split)
+    problems = sample_problems(cfg.problems.n_per_task, cfg, int(cfg.problems[f"seed_{ps}"]), rt, ps)
     pairs = [(p, c) for p in range(problems.n) for c in range(len(cards)) if problems.task[p] == cards[c].task]
     return OracleJob(problems=problems, cards=cards, pairs=pairs)
 

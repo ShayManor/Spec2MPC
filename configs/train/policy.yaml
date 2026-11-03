@@ -24,6 +24,7 @@ alpha_distill: 1.0  # ELBO weight in stage B
 n_samples: 4  # prior draws per context in the V(W) objective
 n_xi: 8  # global-prior condition draws per context and step
 lam: 1.0  # critic score = mean - lam * std
+vw_chunk: 0  # stage-B contexts per W/V pass (memory only, same gradient); 0 is the whole batch
 opt: {lr: 3.0e-4, batch: 256}
 world_model: data/models/world_model/seed0/model.pt
 critic: data/models/critic/seed0/model.pt

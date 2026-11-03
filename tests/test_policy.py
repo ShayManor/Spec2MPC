@@ -230,3 +230,28 @@ def test_expected_score_is_mean_of_per_draw_scores():
         of_mean = V.score(ctx.text_emb, ctx.slots, W.expected(ctx.robot_tok, ctx.path_tok, theta, xi), 0.5)
     assert s.shape == (B,) and torch.allclose(s, per_draw, atol=1e-5)
     assert not torch.allclose(s, of_mean, atol=1e-3)
+
+
+
+def test_vw_chunk_matches_whole_batch():
+    # chunking the stage-B W/V pass changes peak memory only: same draws, values, and policy gradient
+    ctx = ctx_batch(8)
+    W = ToyW().requires_grad_(False); V = ToyV(W.A).requires_grad_(False)
+    xi = torch.rand(8, 3, 6, generator=torch.Generator().manual_seed(3)) * 2 - 1
+    out = []
+    for chunk in (0, 3):
+        torch.manual_seed(0)
+        policy = build_policy(cfg_of())
+        gen = torch.Generator().manual_seed(4)
+        if chunk:
+            term, vw = tp.vw_chunked(policy, W, V, ctx, xi, 4, 1.0, gen, chunk)
+        else:
+            vw = vw_objective(policy, W, V, ctx, xi, 4, 1.0, gen)
+            term = vw.mean()
+        term.backward()
+        out.append((vw.detach(), [p.grad for p in policy.parameters() if p.grad is not None]))
+    assert torch.allclose(out[0][0], out[1][0], rtol=1e-6)
+    assert len(out[0][1]) == len(out[1][1]) > 0
+    assert all(torch.allclose(g, h, rtol=1e-4, atol=1e-6) for g, h in zip(out[0][1], out[1][1]))
+    cfg = cfg_of(steps_vw=3, vw_chunk=3)
+    train_policy(cfg, (table_of(ctx.index(slice(0, 2))), torch.zeros(2, 14)), table_of(ctx), W, V)

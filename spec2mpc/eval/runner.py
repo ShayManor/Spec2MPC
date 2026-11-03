@@ -18,24 +18,33 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
+from spec2mpc.baselines.llm import MODES as LLM_MODES, load_llm_theta
 from spec2mpc.baselines.oracle_reader import load_oracle_thetas
 from spec2mpc.baselines.simple import MeanTheta, NNRetrieval, default_theta_n
 from spec2mpc.eval.metrics import attach_jhat, critic_gap, critic_target_asinh, floor_violation_rate, floor_violations
 from spec2mpc.model.data import TASK_IDS, load_theta_star, normalize_xi, xi_from_conditions
 from spec2mpc.model.policy import PolicyContext, draw_score, expected_score
 from spec2mpc.mpc.theta import ThetaBatch, denormalize_theta, normalize_theta, theta_bounds
-from spec2mpc.rubric.cards import Card
+from spec2mpc.rubric.cards import Card, load_test_cards
 from spec2mpc.rubric.scoring import card_max_score, sample_card_conditions, score, tier_passes
 from spec2mpc.rubric.splits import statement_records
 from spec2mpc.search.inference import amortized, bon_pred, bon_true, refine
 from spec2mpc.sim.conditions import Conditions, sample_conditions
+from spec2mpc.robots.kart import Robot
 from spec2mpc.sim.evaluate import rollout_metrics
 from spec2mpc.sim.problems import Problems, stable_seed
+from spec2mpc.sim.rollout import Controller
+from spec2mpc.sim.scenes import Scene
 
 SUMMARY_FILE = "summary.parquet"
 KINDS = {"val_paraphrase": "paraphrase", "val_intent": "intent"}
-SINGLE_SHOT = ("default", "oracle", "mean_theta", "nn_retrieval", "slot_only", "applv_lang", "amortized")  # K = 0
-LEARNED = ("slot_only", "applv_lang", "amortized", "bon_pred", "refine", "bon_true")  # one result per training seed
+SINGLE_SHOT = ("default", "oracle", "mean_theta", "nn_retrieval", "llm_zeroshot", "llm_fewshot", "slot_only", "applv_lang", "amortized", "nav_stack",
+               "vla")  # K = 0
+LEARNED = ("slot_only", "applv_lang", "amortized", "bon_pred", "refine", "bon_true", "vla")  # one result per seed
+CONTROLLERS = ("nav_stack", "vla")  # methods that drive the plant without the MPC (no theta)
+GOTO_ONLY = ("vla",)  # methods scored on go-to pairs only
+# make_controller(robot, scene, cond, episodes) for a chunk of the layout; episodes [B] long index the layout
+ControllerFactory = Callable[[Robot, Scene, Conditions, Tensor], Controller]
 
 
 @dataclass(frozen=True)
@@ -49,6 +58,16 @@ class EvalUnit:
 def val_units(split_cfg: DictConfig) -> List[EvalUnit]:
     # -> the val_paraphrase and val_intent statements of statement_records, in record order
     return [EvalUnit(r.text, r.card_id, r.task, KINDS[r.role]) for r in statement_records(split_cfg) if r.role in KINDS]
+
+
+def eval_units(cfg: DictConfig) -> List[EvalUnit]:
+    # cfg: eval config -> the val units (eval_split val), or every statement of a test split's cards (kind "intent"
+    # for test_intent, "compose" for test_compose)
+    split = str(cfg.eval_split)
+    if split == "val":
+        return val_units(cfg.splits)
+    cards = load_test_cards(Path(cfg.splits.cards_root), split)
+    return [EvalUnit(s, c.id, c.task, split.removeprefix("test_")) for c in cards for s in c.statements]
 
 
 @dataclass
@@ -85,15 +104,40 @@ def make_layout(units: Sequence[EvalUnit], problems: Problems, cards: Mapping[st
 
 
 def run_thetas(theta_n: Tensor, layout: EvalLayout, problems: Problems, cards: Mapping[str, Card], cfg: DictConfig,
-               device: torch.device) -> Dict[str, Tensor]:
+               device: torch.device, make_controller: Optional[ControllerFactory] = None,
+               chunk: int = 0, cache: Optional[Path] = None,
+               shard: Optional[Tuple[int, int]] = None) -> Optional[Dict[str, Tensor]]:
     # theta_n [U, P, 14] normalized (entries of off-task pairs unused); cfg: root config with sim, mpc, robots
     # -> per (unit, problem) pair: unit_idx, problem_idx [n_pairs], J [n_pairs] (mean over xi), tier_rate
     # [n_pairs, max_tiers] (NaN past a card's tiers), boundary_violation_rate, completion_rate [n_pairs];
-    # one rollout_metrics call with a fixed generator, so every method gets identical perception noise
+    # one rollout_metrics call with a fixed generator, so every method gets identical perception noise; chunk > 0
+    # rolls out fixed runs of chunk episodes, each with its own fixed generator (methods compared under one chunk
+    # size see identical noise); make_controller drives the plant in place of the MPC; with cache, each chunk's
+    # metrics are saved to cache/chunk{c}.pt and reused when present (a lost runtime resumes at its next chunk)
+    # shard (i, n) rolls out only the uncached chunks c with c % n == i and returns None when any chunk is missing
     theta = denormalize_theta(theta_n[layout.unit_idx, layout.problem_idx].float(), cfg.mpc)  # [E, 14]
     robot, scene = problems.expand(layout.problem_idx)
-    m = rollout_metrics(robot, scene, ThetaBatch(values=theta), layout.cond, cfg,
-                        torch.Generator().manual_seed(layout.gen_seed), device).metrics  # {name: [E]} on CPU
+    E = theta.shape[0]
+    parts = []
+    for c, lo in enumerate(range(0, E, chunk or E)):
+        ep = torch.arange(lo, min(lo + (chunk or E), E))
+        gen = torch.Generator().manual_seed(layout.gen_seed if not chunk else stable_seed(layout.gen_seed, "chunk", c))
+        f = None if cache is None else cache / f"chunk{c:04d}.pt"
+        if f is not None and f.exists():
+            parts.append(torch.load(f))
+            continue
+        if shard is not None and c % shard[1] != shard[0]:
+            continue
+        mk = None if make_controller is None else (lambda r, s, k, ep=ep: make_controller(r, s, k, ep))
+        parts.append(rollout_metrics(robot.index(ep), scene.index(ep), ThetaBatch(values=theta[ep]),
+                                     layout.cond.index(ep), cfg, gen, device, mk).metrics)
+        if f is not None:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(parts[-1], f.with_suffix(".tmp"))
+            f.with_suffix(".tmp").rename(f)
+    if len(parts) < -(-E // (chunk or E)):
+        return None
+    m = {k: torch.cat([p[k] for p in parts]) for k in parts[0]}  # {name: [E]} on CPU
     pu, pp = layout.pairs()
     n = pu.numel()
     n_xi = layout.unit_idx.numel() // n
@@ -197,12 +241,12 @@ def _load(ctx: EvalContext, name: str, seed: int) -> Tuple[torch.nn.Module, Dict
 
 def _oracle_theta(ctx: EvalContext, k: Optional[int]) -> Tensor:
     # -> [n_pairs, 14] normalized theta* (k None) or CMA mean at k for each (val problem, unit card)
-    th = load_oracle_thetas(Path(ctx.cfg.oracle_root) / "val", k)
+    th = load_oracle_thetas(Path(ctx.cfg.oracle_root) / str(ctx.cfg.eval_split), k)
     pu, pp = ctx.pair_idx
     keys = [(ctx.problems.problem_id[p], ctx.units[u].card_id) for u, p in zip(pu.tolist(), pp.tolist())]
     missing = [kk for kk in keys if kk not in th]
     if missing:
-        raise KeyError(f"val oracle has no theta for {missing[:4]}")
+        raise KeyError(f"{ctx.cfg.eval_split} oracle has no theta for {missing[:4]}")
     return normalize_theta(torch.stack([th[kk] for kk in keys]), ctx.rcfg.mpc)
 
 
@@ -259,6 +303,13 @@ def method_thetas(ctx: EvalContext, method: str, K: int, seed: int) -> Tuple[Ten
         nn = NNRetrieval().fit(ctx.train_emb[rows], torch.tensor([TASK_IDS[card_task[ctx.train_card[i]]] for i in rows]),
                                torch.stack([card_theta[ctx.train_card[i]] for i in rows]))
         return nn.predict(ctx.unit_emb[pu], task), nan, nan, None
+    if method in LLM_MODES:
+        th = load_llm_theta(Path(ctx.cfg.llm.cache_dir) / f"{method}.json")
+        keys = [(ctx.units[u].statement, ctx.problems.problem_id[p]) for u, p in zip(pu.tolist(), pp.tolist())]
+        missing = [k for k in keys if k not in th]
+        if missing:
+            raise KeyError(f"{method} cache has no theta for {missing[:4]}")
+        return normalize_theta(torch.tensor([th[k] for k in keys]), ctx.rcfg.mpc), nan, nan, None
     pctx = ctx.context()
     if method == "slot_only":
         policy, _ = _load(ctx, "policy_zero", seed)
@@ -303,23 +354,50 @@ def method_thetas(ctx: EvalContext, method: str, K: int, seed: int) -> Tuple[Ten
     return theta.detach().cpu(), s.detach().cpu().float(), m.detach().cpu().float(), asinh
 
 
-def evaluate_setting(ctx: EvalContext, method: str, K: int, seed: int) -> pa.Table:
+def evaluate_setting(ctx: EvalContext, method: str, K: int, seed: int) -> Optional[pa.Table]:
     # theta for (method, K, seed) -> floor check (asserted 0) -> true rollouts on the shared layout -> result rows
-    theta, pred, pred_mean, asinh = method_thetas(ctx, method, K, seed)
     pu, pp = ctx.pair_idx
+    if method in CONTROLLERS:  # no theta: the default theta fills the unused MPC input, no floors, no critic
+        nan = torch.full((pu.numel(),), float("nan"))
+        theta, pred, pred_mean, asinh = default_theta_n(pu.numel(), ctx.rcfg.mpc), nan, nan, None
+        make_controller = controller_factory(ctx, method, seed)
+    else:
+        theta, pred, pred_mean, asinh = method_thetas(ctx, method, K, seed)
+        make_controller = None
     params = ctx.problems.robot.params.index(pp)
     rate = floor_violation_rate(theta, params, ctx.rcfg.mpc)
     assert rate == 0.0, f"{method} K={K} seed={seed}: safety-floor violation rate {rate} (must be 0)"
     full = torch.zeros(len(ctx.units), ctx.problems.n, theta.shape[1])
     full[pu, pp] = theta.float()
-    out = run_thetas(full, ctx.layout, ctx.problems, ctx.cards, ctx.rcfg, ctx.device)
+    chunk = int(ctx.cfg.get("chunk") or 0)
+    cache = Path(ctx.cfg.out_dir) / "chunks" / f"{method}_{K}_{seed}_{ctx.cfg.group}" if chunk else None
+    shard = ctx.cfg.get("shard")
+    shard = tuple(int(v) for v in str(shard).split("/")) if shard else None
+    out = run_thetas(full, ctx.layout, ctx.problems, ctx.cards, ctx.rcfg, ctx.device, make_controller, chunk, cache,
+                     shard)
+    if out is None:
+        return None
     J_norm = out["J"] / torch.tensor([card_max_score(ctx.cards[ctx.units[u].card_id]) for u in pu.tolist()],
                                      dtype=torch.float64)
     nan = torch.full_like(J_norm, float("nan"))
     gap = nan if asinh is None else critic_gap(pred.double(), J_norm, asinh)
     gap_mean = nan if asinh is None else critic_gap(pred_mean.double(), J_norm, asinh)
-    return result_table(method, K, seed, ctx.units, ctx.problems, ctx.cards, out, pred, gap, pred_mean, gap_mean,
-                        floor_violations(theta, params, ctx.rcfg.mpc))
+    fv = floor_violations(theta, params, ctx.rcfg.mpc) & (method not in CONTROLLERS)
+    table = result_table(method, K, seed, ctx.units, ctx.problems, ctx.cards, out, pred, gap, pred_mean, gap_mean, fv)
+    if method in GOTO_ONLY:
+        table = table.filter(pa.array([ctx.problems.task[p] == "goto" for p in pp.tolist()], pa.bool_()))
+    return table
+
+
+def controller_factory(ctx: EvalContext, method: str, seed: int) -> ControllerFactory:
+    # -> make_controller for a controller method; imports stay lazy (ROS 2 and openpi exist only on their runtimes)
+    if method == "nav_stack":
+        from spec2mpc.baselines.nav_stack import nav_stack_factory
+        return nav_stack_factory(ctx.rcfg, ctx.cfg.nav_stack)
+    if method == "vla":
+        from spec2mpc.baselines.vla import vla_factory
+        return vla_factory(ctx, seed)
+    raise ValueError(f"unknown controller method {method}")
 
 
 def anchor_files(group: str) -> Tuple[str, str]:
@@ -366,6 +444,9 @@ def run_settings(ctx: EvalContext, todo: Sequence[Tuple[str, int, int]], out: Pa
         except Exception:  # noqa: BLE001 - one broken setting must not stop the others
             print(f"FAILED {f.stem}:\n{traceback.format_exc()}", flush=True)
             failed.append(f.stem)
+            continue
+        if tab is None:
+            print(f"{f.stem}: shard {ctx.cfg.shard} done, chunks of other shards missing", flush=True)
             continue
         for k, v in {"anchor_group": group, **tags}.items():
             tab = tab.append_column(k, pa.array([str(v)] * tab.num_rows, pa.string()))

@@ -2,14 +2,14 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-GUARDED = ("model", "critic", "search", "text", "tokenize", "baselines")
-FORBIDDEN = ("spec2mpc.rubric", "spec2mpc.eval")
+GUARDED = ("model", "critic", "search", "text", "tokenize", "baselines", "program", "executor", "orchestrator", "perception")
+FORBIDDEN = ("spec2mpc.rubric", "spec2mpc.eval", "spec2mpc.oracle")
 
 
 def guarded_files():
     for d in GUARDED:
         for p in sorted((ROOT / "spec2mpc" / d).rglob("*.py")):
-            if p.relative_to(ROOT / "spec2mpc" / "baselines").as_posix() != "oracle_bo.py" if d == "baselines" else True:
+            if not (d == "baselines" and p.parent.name == "baselines" and p.name.startswith("oracle_")):
                 yield p
 
 

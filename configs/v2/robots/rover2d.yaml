@@ -1,0 +1,32 @@
+# safety floors: clipped by the program adapter, never changed by model output
+family: rover2d
+solver: sampling
+floors:
+  min_clearance_m: 0.2
+  max_speed_frac: 0.9
+  max_force_frac: 0.9
+# ranges: params and perception are uniform [lo, hi]; runtime lists are discrete choices.
+# seed None gives the nominal robot: range midpoints and the first runtime choice.
+# members: mjcf is menagerie:<path> (MENAGERIE_PATH or configs/v2/menagerie.lock) or generated:<file>
+# (spec2mpc/robots/v2/models); frames map canonical frame names to body:, site:, or geom: names.
+ranges:
+  params:
+    mass_scale: [0.8, 1.2]
+    friction_scale: [0.6, 1.4]
+    damping_scale: [0.7, 1.3]
+  perception:
+    range_m: [5, 20]
+    fov_rad: [1.5, 6.2832]
+    loc_noise_std_m: [0.0, 0.05]
+    loc_bias_m: [0.0, 0.03]
+    latency_s: [0.0, 0.1]
+    p_miss: [0.0, 0.05]
+    rate_hz: [10, 30]
+  runtime:
+    control_rate_hz: [20, 10, 50]
+    horizon_s: [2.0, 1.0, 3.0]
+    n_samples: [64, 32, 128, 256]
+members:
+  - name: rover2d
+    mjcf: generated:rover2d.xml
+    frames: {base: site:base_site}

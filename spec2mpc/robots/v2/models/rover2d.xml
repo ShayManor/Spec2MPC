@@ -1,0 +1,20 @@
+<!-- rover2d: planar unicycle rover (x, y, yaw), forward speed and yaw rate commands through
+     body-frame velocity actuators on a local slide joint -->
+<mujoco model="rover2d">
+  <compiler angle="radian"/>
+  <option timestep="0.005" integrator="implicitfast"/>
+  <worldbody>
+    <body name="base" pos="0 0 0.1">
+      <joint name="base_x" type="slide" axis="1 0 0" damping="0.1"/>
+      <joint name="base_y" type="slide" axis="0 1 0" damping="0.1"/>
+      <joint name="base_yaw" type="hinge" axis="0 0 1" damping="0.1"/>
+      <site name="base_site" pos="0 0 0"/>
+      <geom name="base" type="box" size="0.25 0.2 0.06" mass="15" rgba="0.7 0.6 0.2 1" contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <!-- forward speed along the heading (site-frame gear), m/s, and yaw rate, rad/s -->
+    <velocity name="forward" site="base_site" gear="1 0 0 0 0 0" kv="150" ctrlrange="-2 2" forcerange="-200 200"/>
+    <velocity name="yaw" joint="base_yaw" kv="20" ctrlrange="-2.5 2.5" forcerange="-50 50"/>
+  </actuator>
+</mujoco>

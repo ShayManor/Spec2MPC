@@ -21,12 +21,12 @@ from spec2mpc.critic.critic import build_critic
 from spec2mpc.eval.metrics import attach_jhat, drop_unanchored, summarize
 from spec2mpc.eval.plots import plot_critic_gap, plot_methods, plot_score_vs_budget
 from spec2mpc.eval.runner import (SUMMARY_FILE, EvalContext, anchor_files, make_layout, result_files, run_settings,
-                                  settings, val_units, write_table)
+                                  settings, eval_units, write_table)
 from spec2mpc.model.io import load_checkpoint
 from spec2mpc.model.policy import build_policy
 from spec2mpc.model.world_model import build_world_model
 from spec2mpc.mpc.theta import theta_bounds
-from spec2mpc.rubric.cards import load_cards
+from spec2mpc.rubric.cards import load_cards, load_test_cards
 from spec2mpc.rubric.splits import statement_records
 from spec2mpc.sim.problems import load_oracle_problems
 from spec2mpc.sim.storage import code_digest, git_hash
@@ -39,13 +39,15 @@ BUILDERS = {"world_model": build_world_model, "critic": build_critic, "policy_fu
 @hydra.main(version_base="1.3", config_path="../configs", config_name="eval")
 def main(cfg: DictConfig) -> None:
     device = torch.device(cfg.device)
-    problems, rcfg = load_oracle_problems(Path(cfg.oracle_root) / "val")
-    assert str(rcfg.split) == "val", f"eval needs the val oracle run, got split {rcfg.split}"
+    split = str(cfg.eval_split)
+    problems, rcfg = load_oracle_problems(Path(cfg.oracle_root) / split)
+    assert str(rcfg.split) == split, f"eval needs the {split} oracle run, got split {rcfg.split}"
     if not all(torch.equal(a, b) for a, b in zip(theta_bounds(cfg.mpc), theta_bounds(rcfg.mpc))):
         raise ValueError("eval mpc theta box differs from the val oracle run")
     root = Path(cfg.splits.cards_root)
-    cards = {c.id: c for c in load_cards(root, "train") + load_cards(root, "val")}
-    units = val_units(cfg.splits)
+    cards = {c.id: c for c in load_cards(root, "train") + load_cards(root, "val")
+             + (load_test_cards(root, split) if split != "val" else [])}
+    units = eval_units(cfg)
     layout = make_layout(units, problems, cards, int(cfg.n_xi), int(cfg.xi_seed), rcfg.sim)
     train = [r for r in statement_records(cfg.splits) if r.role == "train"]
     encoder = make_text_encoder(cfg.text)

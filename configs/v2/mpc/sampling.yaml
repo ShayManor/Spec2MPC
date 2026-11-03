@@ -1,0 +1,52 @@
+# sampling MPC defaults (Task 2); per-family entries override the top-level ones
+horizon_s: 1.0           # planning horizon
+n_knots: 4               # spline knots over the horizon (linear interpolation)
+noise_frac: 0.3          # sample std as a fraction of each actuator's half range
+servo_lead_s: 0.02       # position servos: sample std is the joint speed limit times this
+temperature: 0.1         # MPPI temperature, relative to the cost spread
+cem_iters: 3
+cem_elite_frac: 0.1
+control_rate_hz: 50.0    # used when robot.runtime has no control_rate_hz
+safety_margin: 0.97      # the planner targets this fraction of each hard limit
+filter_iters: 6          # bisection steps of the execution-time speed filter
+plan_iterations: 4       # planning model constraint solver iterations (the plant keeps its own)
+plan_ls_iterations: 8
+weights:                 # default term weights (a term's w param multiplies them)
+  pose_pos: 1.0
+  pose_rot: 0.0
+  terminal: 5.0          # extra weight on the last horizon step of pose terms
+  relative_pos: 1.0
+  relative_rot: 0.3
+  approach: 1.0
+  path_contour: 1.0
+  path_progress: 1.0
+  path_speed: 0.1
+  velocity: 1.0
+  contact: 1.0
+  gait: 10.0
+  balance: 1.0
+  upright: 1.0
+  height: 10.0
+  clearance: 100.0
+  smooth: 0.01
+  effort: 1.0e-4         # always-on control regularizer
+  violation: 10000.0      # hard-limit excess (speed, tilt, force)
+# speed and tilt limits the limit() fractions refer to; RobotSpec.limits lists only actuator ranges
+nominal_limits: {joint_speed_radps: 2.0, base_speed_mps: 1.0, tilt_rad: 1.0}
+env:
+  track_hold_s: 0.5      # a perceived entity survives this long after its last detection
+gait:
+  step_height_m: 0.08
+  default_freq_hz: 2.0
+families:
+  arm: {horizon_s: 0.5, n_knots: 3}
+  mobile_manipulator: {horizon_s: 0.8}
+  mobile_base: {nominal_limits: {joint_speed_radps: 20.0, base_speed_mps: 1.5, tilt_rad: 1.0}}
+  rover2d: {nominal_limits: {joint_speed_radps: 20.0, base_speed_mps: 2.0, tilt_rad: 1.0}}
+  kart: {nominal_limits: {joint_speed_radps: 100.0, base_speed_mps: 25.0, tilt_rad: 1.0}}
+  quadruped: {horizon_s: 0.5, n_knots: 4, noise_frac: 0.2,
+              nominal_limits: {joint_speed_radps: 20.0, base_speed_mps: 1.5, tilt_rad: 0.8}}
+  humanoid: {horizon_s: 0.4, n_knots: 3, noise_frac: 0.1,
+             nominal_limits: {joint_speed_radps: 20.0, base_speed_mps: 1.0, tilt_rad: 0.8}}
+  quadrotor: {horizon_s: 1.0, noise_frac: 0.1,
+              nominal_limits: {joint_speed_radps: 1000.0, base_speed_mps: 5.0, tilt_rad: 1.0}}

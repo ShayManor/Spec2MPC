@@ -1,0 +1,36 @@
+# safety floors: clipped by the program adapter, never changed by model output
+family: humanoid
+solver: sampling
+floors:
+  min_clearance_m: 0.1
+  max_speed_frac: 0.7
+  max_force_frac: 0.8
+  max_tilt_rad: 0.5
+# ranges: params and perception are uniform [lo, hi]; runtime lists are discrete choices.
+# seed None gives the nominal robot: range midpoints and the first runtime choice.
+# members: mjcf is menagerie:<path> (MENAGERIE_PATH or configs/v2/menagerie.lock) or generated:<file>
+# (spec2mpc/robots/v2/models); frames map canonical frame names to body:, site:, or geom: names.
+ranges:
+  params:
+    mass_scale: [0.9, 1.1]
+    friction_scale: [0.8, 1.2]
+    damping_scale: [0.8, 1.2]
+  perception:
+    range_m: [5, 20]
+    fov_rad: [1.5, 6.2832]
+    loc_noise_std_m: [0.0, 0.05]
+    loc_bias_m: [0.0, 0.03]
+    latency_s: [0.0, 0.1]
+    p_miss: [0.0, 0.05]
+    rate_hz: [10, 30]
+  runtime:
+    control_rate_hz: [50, 25, 100]
+    horizon_s: [0.5, 0.3, 1.0]
+    n_samples: [128, 64, 256, 512]
+members:
+  - name: g1
+    mjcf: menagerie:unitree_g1/g1.xml
+    frames: {base: body:pelvis, torso: body:torso_link, left_hand: body:left_wrist_yaw_link, right_hand: body:right_wrist_yaw_link, left_foot: site:left_foot, right_foot: site:right_foot}
+  - name: h1
+    mjcf: menagerie:unitree_h1/h1.xml
+    frames: {base: body:pelvis, torso: body:torso_link, left_hand: body:left_elbow_link, right_hand: body:right_elbow_link, left_foot: body:left_ankle_link, right_foot: body:right_ankle_link}

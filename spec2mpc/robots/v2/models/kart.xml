@@ -1,0 +1,60 @@
+<!-- kart: nominal v1 EVC kart (configs/robots/kart.yaml fixed.evc): mass 210 kg, wheelbase 1.2 m,
+     lf = lr = 0.6 m, width 1.1 m, length 1.8 m, max steer 0.475 rad. The v1 MPCC stays the solver;
+     this model exists for frames, rendering, and the shared robot interface. -->
+<mujoco model="kart">
+  <compiler angle="radian"/>
+  <option timestep="0.005" integrator="implicitfast"/>
+  <default>
+    <geom friction="0.95 0.005 0.0001"/>
+    <default class="wheel">
+      <geom type="cylinder" size="0.14 0.08" euler="1.5708 0 0" mass="4" rgba="0.1 0.1 0.1 1"/>
+    </default>
+  </default>
+  <worldbody>
+    <body name="chassis" pos="0 0 0.16">
+      <freejoint name="root"/>
+      <site name="base_site" pos="0 0 0"/>
+      <geom name="chassis" type="box" size="0.9 0.4 0.05" mass="193" rgba="0.8 0.2 0.1 1"/>
+      <geom name="seat" type="box" size="0.2 0.2 0.15" pos="-0.2 0 0.2" mass="0.001" rgba="0.2 0.2 0.2 1"/>
+      <body name="steer_fl" pos="0.6 0.47 -0.02">
+        <joint name="steer_fl" type="hinge" axis="0 0 1" range="-0.475 0.475" damping="5"/>
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.01 0.01 0.01"/>
+        <body name="wheel_fl">
+          <joint name="wheel_fl" type="hinge" axis="0 1 0" damping="0.1"/>
+          <geom class="wheel"/>
+        </body>
+      </body>
+      <body name="steer_fr" pos="0.6 -0.47 -0.02">
+        <joint name="steer_fr" type="hinge" axis="0 0 1" range="-0.475 0.475" damping="5"/>
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.01 0.01 0.01"/>
+        <body name="wheel_fr">
+          <joint name="wheel_fr" type="hinge" axis="0 1 0" damping="0.1"/>
+          <geom class="wheel"/>
+        </body>
+      </body>
+      <body name="wheel_rl" pos="-0.6 0.47 -0.02">
+        <joint name="wheel_rl" type="hinge" axis="0 1 0" damping="0.1"/>
+        <geom class="wheel"/>
+      </body>
+      <body name="wheel_rr" pos="-0.6 -0.47 -0.02">
+        <joint name="wheel_rr" type="hinge" axis="0 1 0" damping="0.1"/>
+        <geom class="wheel"/>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="chassis" body2="wheel_fl"/>
+    <exclude body1="chassis" body2="wheel_fr"/>
+    <exclude body1="chassis" body2="wheel_rl"/>
+    <exclude body1="chassis" body2="wheel_rr"/>
+  </contact>
+  <equality>
+    <joint joint1="steer_fl" joint2="steer_fr"/>
+  </equality>
+  <actuator>
+    <!-- steer: position target, rad; drive: rear axle torque, N m (950 N max drive force x 0.14 m radius / 2 wheels) -->
+    <position name="steer" joint="steer_fl" kp="400" ctrlrange="-0.475 0.475"/>
+    <motor name="drive_rl" joint="wheel_rl" gear="1" ctrlrange="-66.5 66.5"/>
+    <motor name="drive_rr" joint="wheel_rr" gear="1" ctrlrange="-66.5 66.5"/>
+  </actuator>
+</mujoco>

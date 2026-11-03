@@ -39,6 +39,11 @@ class Problems:
         return p.robot, p.scene
 
 
+def problem_split(split: str) -> str:
+    # test_intent and test_compose hold new intents for the val robots and paths, so they share the val problems
+    return "val" if split in ("test_intent", "test_compose") else split
+
+
 def stable_seed(*parts: object) -> int:
     # 63-bit seed from repr(parts); the same in every process (never Python hash)
     return int.from_bytes(hashlib.blake2b(repr(parts).encode(), digest_size=8).digest(), "little") >> 1
@@ -86,7 +91,7 @@ def load_oracle_problems(oracle_dir: Path) -> Tuple[Problems, DictConfig]:
     # config; if problems.pt ({"problem_id", "digest"}) exists, every rebuilt problem must match its stored digest
     oracle_dir = Path(oracle_dir)
     cfg = OmegaConf.load(oracle_dir / "config.yaml")
-    split = str(cfg.split)
+    split = problem_split(str(cfg.split))
     rt = RuntimeConfig(control_rate_hz=float(cfg.runtime.control_rate_hz), solver_iters=int(cfg.runtime.solver_iters),
                        perception_rate_hz=float(cfg.runtime.perception_rate_hz))
     problems = sample_problems(cfg.problems.n_per_task, cfg, int(cfg.problems[f"seed_{split}"]), rt, split)

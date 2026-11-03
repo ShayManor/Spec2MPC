@@ -1,0 +1,31 @@
+# safety floors: clipped by the program adapter, never changed by model output
+family: kart
+solver: kart_mpcc
+floors:
+  min_clearance_m: 0.2
+  max_speed_frac: 1.0
+  max_force_frac: 1.0
+# ranges: params and perception are uniform [lo, hi]; runtime lists are discrete choices.
+# seed None gives the nominal robot: range midpoints and the first runtime choice.
+# members: mjcf is menagerie:<path> (MENAGERIE_PATH or configs/v2/menagerie.lock) or generated:<file>
+# (spec2mpc/robots/v2/models); frames map canonical frame names to body:, site:, or geom: names.
+ranges:
+  params:
+    mass_scale: [0.8, 1.2]
+    friction_scale: [0.6, 1.4]
+    damping_scale: [0.7, 1.3]
+  perception:
+    range_m: [10, 40]
+    fov_rad: [1.5, 6.2832]
+    loc_noise_std_m: [0.0, 0.2]
+    loc_bias_m: [0.0, 0.1]
+    latency_s: [0.0, 0.15]
+    p_miss: [0.0, 0.05]
+    rate_hz: [5, 10]
+  runtime:  # v1 kart MPCC settings (configs/robots/kart.yaml)
+    control_rate_hz: [20, 10, 25, 50]
+    solver_iters: [10, 5, 20, 40]
+members:
+  - name: kart
+    mjcf: generated:kart.xml
+    frames: {base: site:base_site}

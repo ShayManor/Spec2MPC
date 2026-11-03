@@ -1,0 +1,91 @@
+# Task 9 executor: reasoning VLM emitting typed MPC programs (spec2mpc/executor/)
+name: spec2mpc
+
+backbone:
+  model_id: Qwen/Qwen3.8-27B  # dense, native image-text, Apache-2.0 (user decision 2026-11-02)
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0  # HF main as of 2026-11-02 (lastModified 2026-08-14)
+  fp8_model_id: Qwen/Qwen3.8-27B-FP8  # optional generation checkpoint for GRPO
+  fp8_revision: 017b9c7af6b5689d5dd426a76e0bc077eb5ca20a
+  arch: qwen3_5
+
+prompt:  # build_prompt keyword options for SFT, GRPO, and serving
+  docs: true
+  n_examples: 0
+
+decode:
+  backend: vllm  # vllm (guided JSON) | hf (transformers schema sampler, local only)
+  max_reasoning_tokens: 1024
+  max_program_tokens: 1024
+  temperature: 0.7
+  n_samples: 1  # >1 picks by self-consistency
+  retries: 1  # invalid output: retry once, then ExecutorError("invalid_program")
+
+vllm:  # extra vllm.LLM kwargs
+  dtype: bfloat16
+  max_model_len: 16384
+  gpu_memory_utilization: 0.9
+  max_lora_rank: 32
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: all-linear
+
+sft:
+  data: /vol/data/sft.jsonl
+  output_dir: /vol/executor/sft
+  epochs: 2
+  lr: 1.0e-4
+  batch_size: 1
+  grad_accum: 16
+  max_length: 8192
+  checkpoint_minutes: 30
+  seed: 0
+
+rl:
+  prompts: /vol/data/grpo_prompts.jsonl
+  output_dir: /vol/executor/grpo
+  init_adapter: null  # SFT adapter dir, or null to start from the base model
+  env_urls: []  # env workers serving POST /score
+  num_generations: 8
+  batch_size: 8
+  grad_accum: 4
+  epochs: 1
+  lr: 5.0e-6
+  beta: 0.0
+  temperature: 1.0
+  max_completion_length: 2048
+  invalid_reward: -1.0
+  reward_workers: 16
+  checkpoint_minutes: 30
+  vllm_mode: server  # trl vllm-serve on vllm_gpu, training on train_gpu
+  vllm_gpu: 1
+  train_gpu: 0
+  vllm_port: 8000
+  seed: 0
+
+zero_shot:  # SFT gate (Phase 2): success >= gate_success skips SFT
+  prompts: /vol/data/r0_train_prompts.jsonl
+  env_urls: []
+  gate_success: 0.2
+  max_tasks: null
+  out: /vol/executor/zero_shot/r0.json
+  prompt: {docs: true, n_examples: 3}
+
+server:
+  host: 0.0.0.0
+  port: 8700
+
+modal:
+  app_name: languagespec-executor
+  volume: languagespec-executor
+  cap_usd: 100.0  # total Modal spend across every run
+  budget_path: data/v2/budget.jsonl
+  margin: 1.15  # estimate multiplier over GPU-hours x rate
+  usd_per_gpu_hour: {H100: 3.95, A100-80GB: 2.50, L40S: 1.95}
+  usd_per_cpu_hour: 0.20  # container CPU and memory
+  jobs:  # timeout_h bounds each run, so the estimate bounds its cost
+    sft: {gpu: H100, n_gpu: 1, timeout_h: 6.0}
+    rl: {gpu: H100, n_gpu: 2, timeout_h: 6.0}
+    zero_shot: {gpu: H100, n_gpu: 1, timeout_h: 2.0}

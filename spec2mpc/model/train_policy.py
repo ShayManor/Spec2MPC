@@ -10,7 +10,9 @@ from omegaconf import DictConfig
 from torch import Tensor, nn
 
 from spec2mpc.model.data import RolloutTensors, normalize_xi, xi_from_conditions
-from spec2mpc.model.policy import ContextTable, Spec2MPCPolicy, build_policy, vw_objective
+from spec2mpc.model.policy import (ContextTable, PolicyContext, Spec2MPCPolicy, build_policy, expected_score,
+                                   vw_objective)
+from spec2mpc.model.world_model import D_THETA
 from spec2mpc.sim.conditions import sample_conditions
 
 
@@ -57,6 +59,24 @@ def vw_table(data: RolloutTensors, train: Tensor, text_emb: Tensor, slots: Tenso
     return ContextTable(data.robot_tok[first], data.path_tok[first], text_emb, slots, pair)
 
 
+def vw_chunked(policy: Spec2MPCPolicy, W: nn.Module, V: nn.Module, ctx: PolicyContext, xi_n: Tensor, n_samples: int,
+               lam: float, gen: Optional[torch.Generator], chunk: int) -> Tuple[Tensor, Tensor]:
+    # vw_objective with W and V run on `chunk` contexts at a time (lower peak memory, same draws and gradient):
+    # ctx [B], xi_n [B, X, 6] -> (surrogate [], vw [B]); surrogate has the policy gradient of vw.mean()
+    B = xi_n.shape[0]
+    theta = policy.sample(ctx, n_samples, gen).reshape(B * n_samples, D_THETA)  # [B*N, 14]
+    th = theta.detach().requires_grad_(True)
+    rep = lambda t: t.repeat_interleave(n_samples, dim=0)  # noqa: E731
+    vw = []
+    for c in range(0, B, chunk):
+        cc, rows = ctx.index(slice(c, c + chunk)), slice(c * n_samples, (c + chunk) * n_samples)
+        s = expected_score(W, V, rep(cc.robot_tok), rep(cc.path_tok), th[rows], rep(xi_n[c:c + chunk]),
+                           rep(cc.text_emb), rep(cc.slots), lam).view(-1, n_samples).mean(1)  # [b_c]
+        (s.sum() / B).backward()
+        vw.append(s.detach())
+    return (theta * th.grad).sum(), torch.cat(vw)
+
+
 def train_policy(cfg: DictConfig, distill_data: Tuple[ContextTable, Tensor], vw_contexts: ContextTable,
                  W: nn.Module, V: nn.Module, log: Optional[List[dict]] = None) -> Spec2MPCPolicy:
     # distill_data: contexts [R] and theta*_n [R, 14]; vw_contexts [N]; log (optional) receives one dict per
@@ -73,6 +93,7 @@ def train_policy(cfg: DictConfig, distill_data: Tuple[ContextTable, Tensor], vw_
     log = [] if log is None else log
     R, t0 = table.batch_size, time.perf_counter()
     every = int(cfg.get("log_every", 0))  # print every `every` epochs / steps; 0 is silent
+    chunk = int(cfg.get("vw_chunk") or 0)  # stage-B contexts per W/V pass; 0 is the whole batch
 
     for epoch in range(int(cfg.epochs_distill)):
         policy.train()
@@ -95,9 +116,14 @@ def train_policy(cfg: DictConfig, distill_data: Tuple[ContextTable, Tensor], vw_
         ci = torch.randint(0, N, (min(bs, N),), generator=gen).to(device)
         di = torch.randint(0, R, (min(bs, R),), generator=gen).to(device)
         xi = global_xi(ci.numel(), int(cfg.n_xi), cfg.sim, gen).to(device)  # [b, X, 6]
-        vw = vw_objective(policy, W, V, vw_contexts.index(ci), xi, int(cfg.n_samples), float(cfg.lam), gen_s)  # [b]
+        if chunk:
+            vw_term, vw = vw_chunked(policy, W, V, vw_contexts.index(ci), xi, int(cfg.n_samples), float(cfg.lam), gen_s,
+                                     chunk)
+        else:
+            vw = vw_objective(policy, W, V, vw_contexts.index(ci), xi, int(cfg.n_samples), float(cfg.lam), gen_s)  # [b]
+            vw_term = vw.mean()
         elbo = policy.elbo_loss(table.index(di), theta_star[di], beta, gen_s)
-        loss = -vw.mean() + float(cfg.alpha_distill) * elbo
+        loss = -vw_term + float(cfg.alpha_distill) * elbo
         opt.zero_grad(set_to_none=True)
         loss.backward()
         opt.step()

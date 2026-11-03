@@ -1,0 +1,35 @@
+# safety floors: clipped by the program adapter, never changed by model output
+family: mobile_manipulator
+solver: sampling
+floors:
+  min_clearance_m: 0.1
+  max_speed_frac: 0.5
+  max_force_frac: 0.5
+# ranges: params and perception are uniform [lo, hi]; runtime lists are discrete choices.
+# seed None gives the nominal robot: range midpoints and the first runtime choice.
+# members: mjcf is menagerie:<path> (MENAGERIE_PATH or configs/v2/menagerie.lock) or generated:<file>
+# (spec2mpc/robots/v2/models); frames map canonical frame names to body:, site:, or geom: names.
+ranges:
+  params:
+    mass_scale: [0.9, 1.1]
+    friction_scale: [0.8, 1.2]
+    damping_scale: [0.8, 1.2]
+  perception:
+    range_m: [5, 20]
+    fov_rad: [1.5, 6.2832]
+    loc_noise_std_m: [0.0, 0.05]
+    loc_bias_m: [0.0, 0.03]
+    latency_s: [0.0, 0.1]
+    p_miss: [0.0, 0.05]
+    rate_hz: [10, 30]
+  runtime:
+    control_rate_hz: [50, 25, 100]
+    horizon_s: [1.0, 0.5, 2.0]
+    n_samples: [64, 32, 128, 256]
+members:
+  - name: stretch
+    mjcf: menagerie:hello_robot_stretch/stretch.xml
+    frames: {base: body:base_link, ee: body:link_gripper_slider, head: body:link_head_tilt}
+  - name: tiago
+    mjcf: menagerie:pal_tiago/tiago_velocity.xml
+    frames: {base: body:base_link, ee: body:arm_7_link, head: body:head_2_link}

@@ -247,3 +247,23 @@ def test_slow_control_rate_follows_plan_stages(kart_cfg, scene, mpc_cfg, short_c
         assert torch.equal(applied[i], want)
     assert not torch.equal(z_out[:, 0, :2], res.u0)  # the plan changes between stages, so the test can fail
     assert torch.equal(solves[1][0], torch.cat([z_out[:, 1:], z_out[:, -1:]], dim=1))
+
+
+def test_controller_replaces_mpc(evc, scene, mpc_cfg, sim_cfg):
+    # a cmd_vel controller holding v = 3 m/s, omega = 0 reaches that speed with zero steer; MPC stats are NaN
+    from spec2mpc.baselines.controllers import cmd_vel_to_targets, targets_to_rates
+    cfg = OmegaConf.create(OmegaConf.to_container(sim_cfg))
+    cfg.episode.timeout_cap_lap_s = 4.0
+    robot, p, calls = _clean(evc), evc.params, []
+
+    def ctrl(x_hat, sdf, origin, t):
+        calls.append(t)
+        steer, force = cmd_vel_to_targets(x_hat, torch.full((B,), 3.0), torch.zeros(B), p, 0.5, 0.5, 0.1)
+        return targets_to_rates(x_hat, steer, force, p, 0.05), torch.ones(B, dtype=torch.bool)
+
+    tr, st = run_episodes_with_stats(robot, scene, default_theta(B, mpc_cfg), _nominal_cond(B), cfg, mpc_cfg,
+                                     torch.Generator().manual_seed(0), controller=ctrl)
+    assert len(calls) == tr.x.shape[1] and calls[1] == pytest.approx(0.05)
+    assert st.cost_mean.isnan().all() and tr.solver_ok.all()
+    assert tr.x[:, -1, 3] == pytest.approx(torch.full((B,), 3.0), abs=0.3)
+    assert tr.x[:, :, 6].abs().max() < 1e-6

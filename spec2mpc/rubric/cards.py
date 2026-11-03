@@ -214,3 +214,14 @@ def load_cards(root: Path, split: str) -> list[Card]:
     if split.lower().startswith("test"):
         raise PermissionError(f"refusing to load rubrics of split '{split}' (CLAUDE.md section 11)")
     return [compile_card(yaml.safe_load(p.read_text())) for p in sorted((Path(root) / split).glob("*.yaml"))]
+
+
+EVAL_TEST_SPLITS = ("test_intent", "test_compose")
+
+
+def load_test_cards(root: Path, split: str) -> list[Card]:
+    # the evaluation-only loader of a test split (CLAUDE.md section 6.3: the eval script and its oracle anchor read
+    # test rubrics); callers are spec2mpc/eval and the oracle_bo test runs, never training, search or baselines
+    if split not in EVAL_TEST_SPLITS:
+        raise PermissionError(f"load_test_cards loads only {EVAL_TEST_SPLITS}, got '{split}'")
+    return [compile_card(yaml.safe_load(p.read_text())) for p in sorted((Path(root) / split).glob("*.yaml"))]

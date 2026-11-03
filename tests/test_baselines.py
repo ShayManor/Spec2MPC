@@ -72,3 +72,20 @@ def test_load_oracle_thetas_missing_k_raises(tmp_path):
     pq.write_table(pa.table(d), tmp_path / "at_k.parquet")
     with pytest.raises(ValueError, match="96"):
         load_oracle_thetas(tmp_path, 96)
+
+
+def test_llm_clip_theta_orders_and_clips_to_box(mpc_cfg):
+    from spec2mpc.baselines.llm import clip_theta
+    from spec2mpc.mpc.theta import theta_bounds
+    lo, hi = theta_bounds(mpc_cfg)
+    raw = {n: 100.0 if i % 2 else -100.0 for i, n in enumerate(THETA_NAMES)}
+    out = clip_theta(raw, mpc_cfg)
+    assert out == [float(hi[i]) if i % 2 else float(lo[i]) for i in range(len(THETA_NAMES))]
+
+
+def test_llm_prompt_holds_statement_and_every_term_and_no_rubric(mpc_cfg):
+    from spec2mpc.baselines.llm import output_schema, theta_spec, user_prompt
+    msg = user_prompt("Kart for a quiet night", "- mass 150 kg", "- closed lap", theta_spec(mpc_cfg), [])
+    assert "Kart for a quiet night" in msg and all(n in msg for n in THETA_NAMES)
+    assert not any(w in msg for w in ("tier", "rubric", "threshold"))
+    assert sorted(output_schema()["required"]) == sorted(THETA_NAMES)

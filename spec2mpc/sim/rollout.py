@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
-from typing import Tuple
+from types import SimpleNamespace
+from typing import Callable, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig
@@ -20,6 +21,8 @@ from spec2mpc.sim.scenes import TASK_LAP, Scene, true_clearance
 from spec2mpc.sim.trajectory import DONE_COMPLETED, DONE_FAILURE, DONE_TIMEOUT, Trajectory
 
 _EPS_T_S = 1e-6
+# non-MPC controller: (x_hat [B,NX], sdf, origin, t_s) -> (u0 [B,NU], ok [B]); u0 holds over the control period
+Controller = Callable[[Tensor, Tensor, Tensor, float], Tuple[Tensor, Tensor]]
 
 
 @dataclass
@@ -58,9 +61,9 @@ def run_episodes(robot: Robot, scene: Scene, theta: ThetaBatch, cond: Conditions
 
 
 def run_episodes_with_stats(robot: Robot, scene: Scene, theta: ThetaBatch, cond: Conditions, sim_cfg: DictConfig,
-                            mpc_cfg: DictConfig, gen: torch.Generator,
-                            tire_model: str = "linear") -> Tuple[Trajectory, SolverStats]:
-    # same as run_episodes, plus per-episode solver stats [B]
+                            mpc_cfg: DictConfig, gen: torch.Generator, tire_model: str = "linear",
+                            controller: Optional[Controller] = None) -> Tuple[Trajectory, SolverStats]:
+    # same as run_episodes, plus per-episode solver stats [B]; a controller replaces the MPC (theta then unused)
     p, rt = robot.params, robot.runtime
     assert isinstance(rt, RuntimeConfig), "rollout needs one RuntimeConfig for the whole batch"
     B, dev = theta.batch_size, theta.values.device
@@ -151,7 +154,12 @@ def run_episodes_with_stats(robot: Robot, scene: Scene, theta: ThetaBatch, cond:
         else:
             # between updates the estimate keeps the last update's localization error
             x_hat = torch.cat([x[:, :2] + loc_err, x[:, 2:]], dim=1)
-        res = mpc.solve(x_hat, mstate, w, p, path, sdf, origin, age * dt, spec, rt.solver_iters)
+        if controller is None:
+            res = mpc.solve(x_hat, mstate, w, p, path, sdf, origin, age * dt, spec, rt.solver_iters)
+        else:
+            u0, ok = controller(x_hat, sdf, origin, t)
+            nan = torch.full((B,), float("nan"), **f32)
+            res = SimpleNamespace(u0=u0, ok=ok, cost=nan, grad_norm=nan)
         age += 1
         us[:, k], oks[:, k] = res.u0, res.ok
         consec = torch.where(res.ok, torch.zeros_like(consec), consec + 1)
@@ -181,7 +189,8 @@ def run_episodes_with_stats(robot: Robot, scene: Scene, theta: ThetaBatch, cond:
         # the warm start by one stage, so z[:, j - 1] is stage j
         for i in range(n_sub):
             j = min(i // sub_per_stage, mstate.z.shape[1])
-            u_cmd = res.u0 if j == 0 else torch.where(res.ok[:, None], mstate.z[:, j - 1, :2], res.u0)
+            u_cmd = (res.u0 if j == 0 or controller is not None
+                     else torch.where(res.ok[:, None], mstate.z[:, j - 1, :2], res.u0))
             ring[:, g_step % ring_len] = u_cmd
             u_app = ring[ar, (g_step - d_steps) % ring_len]  # [B, NU]
             xn = kart_step(x, u_app, p, plant_dt, mu, ms, tire_model, v_blend, kin_relax_s, brake_eps)

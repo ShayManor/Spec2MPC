@@ -1,0 +1,53 @@
+# safety floors: clipped by the program adapter, never changed by model output
+family: arm
+solver: sampling
+floors:
+  min_clearance_m: 0.02
+  max_speed_frac: 0.5
+  max_force_frac: 0.5
+# ranges: params and perception are uniform [lo, hi]; runtime lists are discrete choices.
+# seed None gives the nominal robot: range midpoints and the first runtime choice.
+# members: mjcf is menagerie:<path> (MENAGERIE_PATH or configs/v2/menagerie.lock) or generated:<file>
+# (spec2mpc/robots/v2/models); frames map canonical frame names to body:, site:, or geom: names.
+ranges:
+  params:
+    mass_scale: [0.9, 1.1]
+    friction_scale: [0.8, 1.2]
+    damping_scale: [0.8, 1.2]
+  perception:
+    range_m: [1.0, 3.0]
+    fov_rad: [1.0, 1.6]
+    loc_noise_std_m: [0.0, 0.01]
+    loc_bias_m: [0.0, 0.005]
+    latency_s: [0.0, 0.1]
+    p_miss: [0.0, 0.05]
+    rate_hz: [10, 30]
+  runtime:
+    control_rate_hz: [100, 50, 200]
+    horizon_s: [1.0, 0.5, 2.0]
+    n_samples: [64, 32, 128, 256]
+members:
+  - name: panda
+    mjcf: menagerie:franka_emika_panda/panda.xml
+    frames: {base: body:link0, ee: body:hand}
+  - name: ur5e
+    mjcf: menagerie:universal_robots_ur5e/ur5e.xml
+    frames: {base: body:base, ee: site:attachment_site}
+  - name: ur10e
+    mjcf: menagerie:universal_robots_ur10e/ur10e.xml
+    frames: {base: body:base, ee: site:attachment_site}
+  - name: xarm7
+    mjcf: menagerie:ufactory_xarm7/xarm7.xml
+    frames: {base: body:link_base, ee: site:link_tcp}
+  - name: kinova_gen3
+    mjcf: menagerie:kinova_gen3/gen3.xml
+    frames: {base: body:base_link, ee: site:pinch_site}
+  - name: iiwa14
+    mjcf: menagerie:kuka_iiwa_14/iiwa14.xml
+    frames: {base: body:base, ee: site:attachment_site}
+  - name: sawyer
+    mjcf: menagerie:rethink_robotics_sawyer/sawyer.xml
+    frames: {base: body:base, ee: site:attachment_site}
+  - name: vx300s
+    mjcf: menagerie:trossen_vx300s/vx300s.xml
+    frames: {base: body:base_link, ee: site:pinch}

@@ -1,0 +1,40 @@
+# LIBERO benchmark client env: LIBERO pins robosuite 1.4.0, so it lives apart from the core env.
+# Setup: ./setup.sh (clones LIBERO at the pinned commit, writes its config, runs uv sync).
+# LIBERO itself has no top-level package __init__, so setup.sh puts the clone on sys.path with a .pth file.
+# Run:   envs/libero/run.sh python ...
+[project]
+name = "spec2mpc-libero-env"
+version = "0.1.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "robosuite==1.4.0",
+    "bddl==1.0.1",
+    "mujoco==2.3.7",
+    "numpy>=1.26,<2",
+    "torch==2.5.1",
+    "easydict",
+    "future",
+    "gym==0.25.2",
+    "matplotlib",
+    "imageio",
+    "cloudpickle",
+    "h5py",
+    "tqdm",
+    "termcolor",
+    "pyyaml",
+    "requests",
+    "flask",
+    "pillow",
+    "pytest",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
